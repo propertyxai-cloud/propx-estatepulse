@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "siteId": "propx-estatepulse",
+  "name": "propx-estatepulse",
+  "kind": "react-vite",
+  "devCommand": "vite",
+  "buildCommand": "vite build",
+  "outputDir": "dist",
+  "entry": "index.html",
+  "createdBy": "accio-site-builder",
+  "createdAt": "2026-08-16T06:39:33.679Z",
+  "installedAt": "2026-08-16T07:34:22.544Z",
+  "databaseUrl": "https://supabase.com/dashboard/project/gsotueowzyajkugxslpz",
+  "integrations": {
+    "supabase": {
+      "projectUrl": "https://gsotueowzyajkugxslpz.supabase.co",
+      "projectRef": "gsotueowzyajkugxslpz",
+      "connectedAt": "2026-08-16T06:42:19.799Z"
+    }
+  },
+  "subdomain": "propertyx",
+  "publishedUrl": "https://propertyx.site.accio.ai",
+  "publishedAt": "2026-08-16T08:20:27.990Z",
+  "deployId": "dep_1786868424342_f5dfab15"
+}
