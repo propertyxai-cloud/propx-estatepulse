@@ -31,7 +31,7 @@ export default function MapSearch(){
     let active=true;
     setLoading(true);setError('');
     fetchProperties({city:city||null,countryCode:countryCode||null,propertyType:propertyType||null,limit:100})
-      .then((items)=>{if(active)setAllProperties(items.filter((item)=>Number.isFinite(Number(item.lat))&&Number.isFinite(Number(item.lng))));})
+      .then((items)=>{if(active)setAllProperties(items.filter((item)=>item.lat!==null&&item.lat!==undefined&&item.lng!==null&&item.lng!==undefined&&Number.isFinite(Number(item.lat))&&Number.isFinite(Number(item.lng))&&Number(item.lat)>=-90&&Number(item.lat)<=90&&Number(item.lng)>=-180&&Number(item.lng)<=180));})
       .catch((err)=>{if(active)setError(err.message||'Could not load map listings.');})
       .finally(()=>{if(active)setLoading(false);});
     return ()=>{active=false;};
