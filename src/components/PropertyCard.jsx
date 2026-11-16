@@ -1,95 +1,113 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Bath, BedDouble, CalendarClock, Eye, Flame, Heart, MapPin, Phone, ShieldCheck, Share2, Ruler, Sparkles } from 'lucide-react';
-import { LISTING_TYPE_LABEL } from '../lib/data';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Bath, BedDouble, CalendarClock, Eye, Heart, MapPin, Phone, Ruler, Share2, Sparkles } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { addFavorite, formatCurrency, isPropertyFavorite, removeFavorite } from '../lib/data';
 
 export default function PropertyCard({ property, showMatch = false, showActions = false, onViewing }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [saved, setSaved] = useState(false);
-  const [toast, setToast] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [imageIndex, setImageIndex] = useState(0);
   const p = property;
 
-  const badgeKey = (b) => {
-    const k = b.toLowerCase();
-    if (k.includes('hot')) return 'hot';
-    if (k.includes('docs')) return 'verified';
-    if (k.includes('rent')) return 'rent';
+  useEffect(() => {
+    let active = true;
+    if (!user?.id || !p?.id) { setSaved(false); return undefined; }
+    isPropertyFavorite(user.id, p.id)
+      .then((value) => { if (active) setSaved(value); })
+      .catch((error) => console.warn('Could not load favorite state:', error));
+    return () => { active = false; };
+  }, [user?.id, p?.id]);
+
+  const images = Array.isArray(p.images) && p.images.length ? p.images : [];
+  const badgeKey = (badge) => {
+    const value = String(badge).toLowerCase();
+    if (value.includes('hot')) return 'hot';
+    if (value.includes('verified')) return 'verified';
+    if (value.includes('rent')) return 'rent';
     return 'sale';
   };
-
-  const sizeLabel = p.area
-    ? `${p.area} ${p.area_unit}`
-    : `${p.beds ? p.beds + ' bed' : ''}`;
+  const sizeLabel = p.area ? `${p.area} ${p.area_unit || ''}`.trim() : null;
+  const price = p.price_label || formatCurrency(p.price, p.currency_code || p.currency || 'USD');
+  const toggleFavorite = async () => {
+    if (!user) { navigate('/login'); return; }
+    setSaving(true);
+    setMessage('');
+    try {
+      if (saved) await removeFavorite(user.id, p.id);
+      else await addFavorite(user.id, p.id);
+      setSaved(!saved);
+    } catch (error) {
+      setMessage(error.message || 'Could not update saved properties.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <article className="prop-card">
       <div className="prop-media">
-        {p.images?.[0] ? <img src={p.images[0]} alt={p.title} loading="lazy" /> : <img src="/assets/images/placeholder.svg" alt="" loading="lazy" />}
+        {images.length ? (
+          <img src={images[imageIndex]} alt={p.title || 'Property photograph'} loading="lazy" />
+        ) : (
+          <div className="prop-media-empty" role="img" aria-label="No property photograph uploaded">
+            <Ruler size={28} /><span>Photos not supplied</span>
+          </div>
+        )}
         <div className="badges">
-          <span className={`badge ${badgeKey(p.badges?.[0] || p.listing_type)}`}>{p.badges?.[0] || LISTING_TYPE_LABEL[p.listing_type]}</span>
-          {p.badges?.slice(1).map((b) => (
-            <span key={b} className={`badge ${badgeKey(b)}`}>
-              {b.toLowerCase().includes('hot') ? <Flame size={10} /> : b.toLowerCase().includes('docs') ? <ShieldCheck size={10} /> : null}
-              {b}
-            </span>
-          ))}
+          <span className={`badge ${badgeKey(p.listing_type)}`}>{p.badges?.[0] || (p.listing_type ? p.listing_type.replace('_',' ') : 'Property')}</span>
+          {p.verified === true && <span className="badge verified">Verified</span>}
         </div>
         <div className="prop-top-right">
-          <button
-            aria-label="Share"
-            onClick={() => {
-              navigator.clipboard?.writeText(window.location.origin + '/property/' + p.id);
-              setToast('Link copied');
-              setTimeout(() => setToast(''), 2000);
-            }}
-          >
-            <Share2 size={14} />
-          </button>
-          <button
-            aria-label="Save"
-            className={saved ? 'saved' : ''}
-            onClick={() => setSaved(!saved)}
-          >
+          <button type="button" aria-label="Share property" onClick={async () => {
+            const url = `${window.location.origin}/property/${p.id}`;
+            try {
+              if (navigator.share) await navigator.share({ title: p.title, url });
+              else { await navigator.clipboard?.writeText(url); setMessage('Link copied.'); }
+            } catch (error) {
+              if (error.name !== 'AbortError') setMessage('Unable to share this listing.');
+            }
+          }}><Share2 size={14} /></button>
+          <button type="button" aria-label={saved ? 'Remove saved property' : 'Save property'} className={saved ? 'saved' : ''} disabled={saving} onClick={toggleFavorite}>
             <Heart size={14} fill={saved ? 'currentColor' : 'none'} />
           </button>
         </div>
-        <div className="price-overlay">
-          <div>
-            <div className="price">{p.price_label}</div>
-            {p.installment && <div className="installment">{p.installment}</div>}
+        {images.length > 1 && (
+          <div className="prop-image-controls">
+            <button type="button" aria-label="Previous photo" onClick={() => setImageIndex((i) => (i - 1 + images.length) % images.length)}>‹</button>
+            <span>{imageIndex + 1}/{images.length}</span>
+            <button type="button" aria-label="Next photo" onClick={() => setImageIndex((i) => (i + 1) % images.length)}>›</button>
           </div>
-          <div className="views"><Eye size={12} /> {p.view_count} · {p.posted_months_ago} months ago</div>
+        )}
+        <div className="price-overlay">
+          <div className="price">{price}</div>
+          <div className="views">{p.view_count ? <><Eye size={12} /> {p.view_count.toLocaleString()}</> : ' '}</div>
         </div>
       </div>
-
       <div className="prop-body">
         <Link to={`/property/${p.id}`} className="prop-title">{p.title}</Link>
-        <div className="prop-loc"><MapPin size={13} /> {p.location || p.city}</div>
+        <div className="prop-loc"><MapPin size={13} /> {[p.location || p.city, p.country].filter(Boolean).join(', ')}</div>
         <div className="meta-chips">
-          <span className="chip">{p.property_type}</span>
-          {p.area && <span className="chip"><Ruler size={11} /> {sizeLabel}</span>}
-          {p.beds ? <span className="chip"><BedDouble size={11} /> {p.beds}</span> : null}
-          {p.baths ? <span className="chip"><Bath size={11} /> {p.baths}</span> : null}
-          {showMatch && p.match_score ? <span className="chip green"><Sparkles size={11} /> {p.match_score}% match</span> : null}
+          {p.property_type && <span className="chip">{p.property_type}</span>}
+          {sizeLabel && <span className="chip"><Ruler size={11} /> {sizeLabel}</span>}
+          {p.beds !== null && p.beds !== undefined && <span className="chip"><BedDouble size={11} /> {p.beds}</span>}
+          {p.baths !== null && p.baths !== undefined && <span className="chip"><Bath size={11} /> {p.baths}</span>}
+          {showMatch && p.match_score && <span className="chip green"><Sparkles size={11} /> {p.match_score}% match</span>}
         </div>
-        {showActions && p.features?.length > 0 && (
-          <div className="meta-chips">
-            {p.features.slice(0, 4).map((f) => (
-              <span key={f} className="chip gray">{f}</span>
-            ))}
-          </div>
-        )}
         {showActions && (
           <div className="prop-actions-row">
-            <button className="btn btn-outline btn-sm" onClick={onViewing}><CalendarClock size={13} /> Viewing</button>
+            <button type="button" className="btn btn-outline btn-sm" onClick={onViewing || (() => navigate(`/property/${p.id}`))}><CalendarClock size={13} /> Details</button>
           </div>
         )}
+        {message && <p className="form-error" role="status">{message}</p>}
       </div>
-
       <div className="prop-footer">
-        <span className="agent">{p.agent_name}</span>
-        <a className="call-link" href={`tel:${p.agent_phone}`}><Phone size={13} /> Call</a>
+        <span className="agent">{p.agent_name || 'Owner listed'}</span>
+        {p.agent_phone ? <a className="call-link" href={`tel:${p.agent_phone}`}><Phone size={13} /> Call</a> : <Link className="call-link" to={`/property/${p.id}`}>Contact</Link>}
       </div>
-      {toast && <div className="toast">{toast}</div>}
     </article>
   );
 }

@@ -1,112 +1,68 @@
 import { useEffect, useState } from 'react';
-import { Award, Search, ShieldCheck, Star } from 'lucide-react';
-import Stars from '../components/Stars';
-import { fetchBrokers } from '../lib/data';
-
-const RING_COLORS = { 1: '#0B835B', 2: '#3B82F6', 3: '#8B5CF6' };
-
-function ScoreRing({ score, color }) {
-  const r = 34;
-  const c = 2 * Math.PI * r;
-  const off = c - (score / 100) * c;
-  return (
-    <div className="score-ring">
-      <svg width="84" height="84" viewBox="0 0 84 84">
-        <circle cx="42" cy="42" r={r} fill="none" stroke="#F0F2F4" strokeWidth="7" />
-        <circle cx="42" cy="42" r={r} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} />
-      </svg>
-      <div className="sr-num">{score}</div>
-    </div>
-  );
-}
+import { Award, Search, ShieldCheck, Star, UserRound } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { fetchBrokers, requireSupabase } from '../lib/data';
 
 export default function BrokerRatings() {
-  const [brokers, setBrokers] = useState([]);
-  const [q, setQ] = useState('');
+  const { user } = useAuth();
+  const [brokers,setBrokers]=useState([]);
+  const [query,setQuery]=useState('');
+  const [selected,setSelected]=useState('');
+  const [rating,setRating]=useState(5);
+  const [review,setReview]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [message,setMessage]=useState('');
+  const [error,setError]=useState('');
+  const [reviewed,setReviewed]=useState(false);
+  const load=()=>fetchBrokers().then(setBrokers).catch((err)=>setError(err.message || 'Could not load the public broker directory.'));
+  useEffect(()=>{load();},[]);
+  const filtered=brokers.filter((broker)=>!query || [broker.name,broker.company_name,broker.city].filter(Boolean).join(' ').toLowerCase().includes(query.toLowerCase()));
+  const totalReviews=brokers.reduce((sum,broker)=>sum+(broker.review_count||0),0);
+  const rated=brokers.filter((broker)=>Number(broker.rating)>0);
+  const average=rated.length ? (rated.reduce((sum,broker)=>sum+Number(broker.rating),0)/rated.length).toFixed(1) : '—';
 
-  useEffect(() => {
-    fetchBrokers().then(setBrokers);
-  }, []);
-
-  const filtered = brokers.filter(
-    (b) => !q || b.name.toLowerCase().includes(q.toLowerCase()) || b.email.toLowerCase().includes(q.toLowerCase())
-  );
-
-  const avg = brokers.length ? (brokers.reduce((s, b) => s + b.rating, 0) / brokers.length).toFixed(1) : '—';
-  const reviews = brokers.reduce((s, b) => s + b.review_count, 0);
+  const submit=async(event)=>{
+    event.preventDefault();setBusy(true);setError('');setMessage('');
+    try{
+      if(!user) throw new Error('Sign in before submitting a broker review.');
+      if(!selected) throw new Error('Choose an agent.');
+      if(review.trim().length<20) throw new Error('Write at least 20 characters about your experience.');
+      const {error:submitError}=await requireSupabase().from('broker_reviews').insert({
+        broker_id:selected, reviewer_id:user.id, rating, review:review.trim(), moderation_status:'pending', verified_deal:false,
+      });
+      if(submitError) throw submitError;
+      setReviewed(true);setReview('');setMessage('Your review has been submitted for moderation. It will appear after approval.');
+    }catch(err){setError(err.message || 'Could not submit your review.');}
+    finally{setBusy(false);}
+  };
 
   return (
-    <div className="container" style={{ paddingTop: 32, paddingBottom: 80 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 28 }}>
-            <Award size={22} style={{ color: 'var(--color-primary)', verticalAlign: -4 }} /> Broker Ratings
-          </h1>
-          <div className="sub" style={{ color: 'var(--color-text-muted)', fontSize: 16, marginTop: 8 }}>
-            Find trusted brokers based on verified client reviews
+    <div className="container page-section">
+      <div className="page-head"><h1><Award size={24}/> Agent and broker directory</h1><p className="sub">Profiles and ratings come from public agent profiles and approved client reviews.</p></div>
+      <div className="broker-stats"><div className="broker-stat"><b className="b-num">{brokers.length}</b><span className="b-lbl">Published profiles</span></div><div className="broker-stat"><b className="b-num">{totalReviews}</b><span className="b-lbl">Approved reviews</span></div><div className="broker-stat"><b className="b-num">{average}</b><span className="b-lbl">Average rating</span></div></div>
+      {error && <div className="form-error" role="alert">{error}</div>}
+      <label className="search-field broker-search"><Search size={16}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search published agents by name, company or city…"/></label>
+      {brokers.length===0 ? <div className="empty-state"><UserRound size={32}/><h2>No published agent profiles</h2><p>Agents can publish a public profile from their account settings. Reviews and ratings will appear after moderation.</p></div> : <div className="broker-directory">{filtered.map((broker)=>(
+        <article className="broker-card" key={broker.id}>
+          <div className="broker-profile-avatar">{broker.avatar_url ? <img src={broker.avatar_url} alt=""/> : <UserRound size={24}/>}</div>
+          <div className="broker-profile-info"><h2>{broker.name}</h2><p>{[broker.headline,broker.company_name,broker.city].filter(Boolean).join(' · ')}</p>{broker.bio && <p>{broker.bio}</p>}
+            <div className="broker-rating-live">{Number(broker.rating)>0 ? <><Star size={15} fill="currentColor"/> {Number(broker.rating).toFixed(1)} · {broker.review_count} approved reviews</> : 'No approved reviews yet'}</div>
+            {broker.verified_deals>0 && <span className="verified-chip"><ShieldCheck size={12}/> {broker.verified_deals} verified deal(s)</span>}
           </div>
-        </div>
-        <button className="btn btn-primary"><Star size={15} /> Rate a Broker</button>
-      </div>
-
-      <div className="broker-stats">
-        <div className="broker-stat"><div className="b-num">{brokers.length || '—'}</div><div className="b-lbl">Brokers Rated</div></div>
-        <div className="broker-stat"><div className="b-num">{reviews}</div><div className="b-lbl">Total Reviews</div></div>
-        <div className="broker-stat"><div className="b-num">{avg}</div><div className="b-lbl">Avg Rating</div></div>
-      </div>
-
-      <div style={{ position: 'relative', marginBottom: 24, maxWidth: 640 }}>
-        <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
-        <input
-          className="input"
-          style={{ paddingLeft: 40 }}
-          placeholder="Search broker by name or email…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-      </div>
-
-      {filtered.map((b) => (
-        <div className="broker-card" key={b.id}>
-          <div className="broker-id">
-            <span className="avatar">{b.name[0]}</span>
-            <div>
-              <div className="broker-name">{b.name}</div>
-              <span className={`rank-badge rank-${b.rank}`}>
-                {b.rank === 1 ? '🥇' : b.rank === 2 ? '🥈' : '🥉'} #{b.rank} Broker
-              </span>
-              <div className="broker-email">{b.email}</div>
-            </div>
-          </div>
-          <div>
-            <div className="broker-rating">
-              <Stars rating={b.rating} />
-              <span>{b.rating.toFixed(1)} <span className="small">({b.review_count} reviews)</span></span>
-            </div>
-            <div className="broker-rating" style={{ marginTop: 8 }}>
-              <span className="verified-chip"><ShieldCheck size={12} /> {b.verified_deals} verified deals</span>
-            </div>
-            <div className="broker-bars" style={{ marginTop: 14 }}>
-              <div className="progress-row">
-                <span>Communication</span>
-                <div className="progress-track"><div className="progress-fill" style={{ width: `${b.communication}%` }} /></div>
-                <span>{b.communication}</span>
-              </div>
-              <div className="progress-row">
-                <span>Professionalism</span>
-                <div className="progress-track"><div className="progress-fill" style={{ width: `${b.professionalism}%` }} /></div>
-                <span>{b.professionalism}</span>
-              </div>
-              <div className="progress-row">
-                <span>Market Knowledge</span>
-                <div className="progress-track"><div className="progress-fill" style={{ width: `${b.market_knowledge}%` }} /></div>
-                <span>{b.market_knowledge}</span>
-              </div>
-            </div>
-          </div>
-          <ScoreRing score={b.score} color={RING_COLORS[b.rank] || '#0B835B'} />
-        </div>
-      ))}
+          {broker.public_phone && <a className="btn btn-outline btn-sm" href={`tel:${broker.public_phone}`}>Contact agent</a>}
+        </article>
+      ))}</div>}
+      {!reviewed && brokers.length>0 && (
+        <section className="dashboard-panel broker-review-form"><h2>Leave an agent review</h2><p>Reviews are public only after moderation. Do not post private personal or financial information.</p>
+          <form className="listing-form" onSubmit={submit}>
+            <label className="form-field"><span>Agent</span><select className="input" value={selected} onChange={(e)=>setSelected(e.target.value)} required><option value="">Choose an agent</option>{brokers.map((broker)=><option key={broker.id} value={broker.id}>{broker.name} — {broker.city || 'Location not provided'}</option>)}</select></label>
+            <label className="form-field"><span>Rating</span><select className="input" value={rating} onChange={(e)=>setRating(Number(e.target.value))}>{[5,4,3,2,1].map((value)=><option key={value} value={value}>{value} / 5</option>)}</select></label>
+            <label className="form-field"><span>Your experience</span><textarea className="input" rows={5} maxLength={2000} value={review} onChange={(e)=>setReview(e.target.value)} minLength={20} required/></label>
+            <button className="btn btn-primary" type="submit" disabled={busy}>{busy?'Submitting…':'Submit for moderation'}</button>
+          </form>
+        </section>
+      )}
+      {message && <div className="success-message" role="status">{message}</div>}
     </div>
   );
 }

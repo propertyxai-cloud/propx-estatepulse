@@ -1,74 +1,49 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, Send, Sparkles, Info } from 'lucide-react';
-import { fetchProperties } from '../lib/data';
+import { Bot, Send, Sparkles, Info, AlertCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { fetchProperties, requireSupabase } from '../lib/data';
 
 const SUGGESTIONS = [
   'Find a 5 marla house in Lahore under 2 crore with 4 bedrooms',
-  'Show apartments near a good school under my budget',
-  'Find properties with high rental yield',
-  'I have 50 lakh. Best investment opportunities?',
+  'Show apartments for rent in Islamabad',
+  'Compare homes in Dubai and Lahore',
+  'Find properties with a published rental yield',
 ];
 
-const BUDGETS = [
-  { re: /under\s*([\d.]+)\s*(crore|crores)/i, mult: 10000000 },
-  { re: /under\s*([\d.]+)\s*(lakh|lac|lakhs|lacs)/i, mult: 100000 },
-  { re: /([\d.]+)\s*(crore|crores)/i, mult: 10000000 },
-  { re: /([\d.]+)\s*(lakh|lac|lakhs|lacs)/i, mult: 100000 },
-];
-
-function parseQuery(q) {
-  const filters = { query: q };
-  const lower = q.toLowerCase();
-
-  const city = ['lahore', 'islamabad', 'rawalpindi', 'karachi', 'multan'].find((c) => lower.includes(c));
-  if (city) filters.city = city === 'lahore' ? 'Lahore' : city === 'islamabad' ? 'Islamabad' : city === 'rawalpindi' ? 'Rawalpindi' : city;
-
-  for (const soc of ['dha', 'bahria', 'gulberg', 'lake city', 'capital smart city', 'al-kabir', 'park view']) {
-    if (lower.includes(soc)) { filters.society = soc; break; }
+function parseLocalFallback(query) {
+  const lower = query.toLowerCase();
+  const filters = { query };
+  const city = ['lahore','islamabad','rawalpindi','karachi','multan','dubai','london','singapore','new york']
+    .find((value) => lower.includes(value));
+  if (city) filters.city = city.replace(/w/g,(letter)=>letter.toUpperCase());
+  if (lower.includes('rent')) filters.listingType = 'rent';
+  else if (lower.includes('lease')) filters.listingType = 'lease';
+  else if (/(buy|sale|purchase)/.test(lower)) filters.listingType = 'sale';
+  const beds = query.match(/(d+)s*(?:bed|bedroom)/i);
+  if (beds) filters.beds = beds[1];
+  const money = query.match(/(?:under|below|max(?:imum)?)s*([d,.]+)s*(crore|crores|cr|lakh|lac|lakhs|lacs|million|m|k)?/i);
+  if (money) {
+    const amount = Number(money[1].replace(/,/g,''));
+    const unit = (money[2] || '').toLowerCase();
+    filters.maxPrice = amount * (['crore','crores','cr'].includes(unit) ? 10000000 : ['lakh','lac','lakhs','lacs'].includes(unit) ? 100000 : ['million','m'].includes(unit) ? 1000000 : unit === 'k' ? 1000 : 1);
   }
-
   if (lower.includes('plot')) filters.propertyType = 'Residential Plot';
   else if (lower.includes('apartment') || lower.includes('flat')) filters.propertyType = 'Apartment';
   else if (lower.includes('farmhouse')) filters.propertyType = 'Farmhouse';
-  else if (lower.includes('house') || lower.includes('home') || lower.includes('bungalow')) filters.propertyType = 'House';
-
-  const bedMatch = q.match(/(\d)\s*(?:bed|bedroom|beds?)/i);
-  if (bedMatch) filters.beds = bedMatch[1];
-
-  for (const b of BUDGETS) {
-    const m = q.match(b.re);
-    if (m) { filters.maxPrice = parseFloat(m[1]) * b.mult; break; }
-  }
-
-  if (lower.includes('rent')) filters.listingType = 'rent';
-  else if (lower.includes('buy') || lower.includes('sale')) filters.listingType = 'sale';
-
+  else if (lower.includes('house')) filters.propertyType = 'House';
   return filters;
 }
 
-function explain(q) {
-  const reasons = [];
-  const lower = q.toLowerCase();
-  if (/under\s*[\d.]+\s*(crore|lakh|lac)/i.test(q)) reasons.push('within your budget');
-  if (/(\d)\s*(?:bed|bedroom)/i.test(q)) reasons.push(`matches bedrooms`);
-  if (lower.includes('dha') || lower.includes('bahria') || lower.includes('gulberg') || lower.includes('lake city')) reasons.push('in your preferred society');
-  if (['lahore', 'islamabad', 'rawalpindi', 'karachi'].some((c) => lower.includes(c))) reasons.push('in the right city');
-  if (lower.includes('plot')) reasons.push('plot listing');
-  if (lower.includes('rent')) reasons.push('rental option');
-  if (reasons.length === 0) reasons.push('closest overall match');
-  return reasons;
-}
-
 export default function AiSearch() {
-  const [messages, setMessages] = useState([
-    {
-      role: 'ai',
-      text: "Hi! I'm your AI property assistant. Tell me what you're looking for — e.g. 'Find me a 5 marla house in Lahore under 2 crore with 4 bedrooms.'",
-    },
-  ]);
+  const { user } = useAuth();
+  const [messages, setMessages] = useState([{
+    role: 'ai',
+    text: 'Describe the country, city, property type, budget and features you need. I will search approved live PropertyX listings and explain what matches.',
+  }]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
+  const [notice, setNotice] = useState('');
   const boxRef = useRef(null);
 
   useEffect(() => {
@@ -76,105 +51,96 @@ export default function AiSearch() {
   }, [messages, typing]);
 
   const run = async (raw) => {
-    const q = raw.trim();
-    if (!q) return;
-    setMessages((m) => [...m, { role: 'user', text: q }]);
-    setInput('');
-    setTyping(true);
+    const query = raw.trim().slice(0,500);
+    if (!query || typing) return;
+    setMessages((items) => [...items, { role:'user', text:query }]);
+    setInput(''); setTyping(true); setNotice('');
+    try {
+      const client = requireSupabase();
+      let filters;
+      let explanation = '';
+      try {
+        const { data, error } = await client.functions.invoke('ai-assistant', {
+          body: { action:'search', payload:{ query } },
+        });
+        if (error) throw error;
+        const result = data?.result || {};
+        const aiFilters = result.filters || {};
+        filters = {
+          query: aiFilters.q || query,
+          city: aiFilters.city || null,
+          listingType: ['sale','rent','lease'].includes(String(aiFilters.type).toLowerCase()) ? String(aiFilters.type).toLowerCase() : null,
+          minPrice: aiFilters.minPrice ?? null,
+          maxPrice: aiFilters.maxPrice ?? null,
+          beds: aiFilters.beds ?? null,
+          baths: aiFilters.baths ?? null,
+          propertyType: aiFilters.propertyType ?? null,
+        };
+        explanation = result.explanation || '';
+      } catch (aiError) {
+        filters = parseLocalFallback(query);
+        setNotice(`AI interpretation is temporarily unavailable; I searched using basic filters instead. ${aiError.message || ''}`);
+      }
 
-    const filters = parseQuery(q);
-    const results = await fetchProperties(filters);
-    setTyping(false);
+      const results = await fetchProperties(filters);
+      let response = explanation || `Found ${results.length} approved live listing(s) matching your search.`;
+      if (!results.length) response += ' There are no approved live listings for those filters yet. Try broadening your search or change city/country.';
+      else response += ' I have not estimated yields, market trends or distances unless that data is present in the listing.';
+      let suggestions = results.slice(0,5);
 
-    if (!results.length) {
-      setMessages((m) => [
-        ...m,
-        {
-          role: 'ai',
-          text: "I couldn't find an exact match — so I relaxed the criteria and searched all active listings. Here are the closest options:",
-          results: results.slice(0, 3),
-        },
-      ]);
-      // retry with relaxed filters
-      const relaxed = await fetchProperties({ query: filters.query, listingType: filters.listingType });
-      setMessages((m) => [...m, { role: 'ai', text: `Relaxed search returned ${relaxed.length} results.`, results: relaxed.slice(0, 3) }]);
-      return;
-    }
+      if (results.length && user) {
+        try {
+          const { data } = await client.functions.invoke('ai-assistant', {
+            body: { action:'advisor', payload:{ message:query, listings:suggestions.map((p)=>({
+              id:p.id,title:p.title,price:p.price,price_label:p.price_label,currency:p.currency_code||p.currency,
+              city:p.city,country:p.country,property_type:p.property_type,beds:p.beds,baths:p.baths,area:p.area,area_unit:p.area_unit,
+              features:p.features,est_yield:p.est_yield,est_roi:p.est_roi,
+            })) } },
+          });
+          if (data?.result?.reply) response = data.result.reply;
+        } catch { /* Live search is still useful even if AI narrative is unavailable. */ }
+      }
 
-    const reasons = explain(q);
-    setMessages((m) => [
-      ...m,
-      {
-        role: 'ai',
-        text: `I found ${results.length} matching listing${results.length > 1 ? 's' : ''} — ranked by how well they fit ${reasons.join(', ')}.`,
-        results: results.slice(0, 3),
-      },
-    ]);
+      setMessages((items)=>[...items,{role:'ai',text:response,results:suggestions}]);
+    } catch (error) {
+      setMessages((items)=>[...items,{role:'ai',text:`I could not complete a live marketplace search: ${error.message || 'Unknown error'}. Please retry in a moment.`}]);
+    } finally { setTyping(false); }
   };
 
   return (
-    <div className="container" style={{ paddingTop: 32, paddingBottom: 80 }}>
+    <div className="container page-section">
+      {notice && <div className="notice"><AlertCircle size={15}/>{notice}</div>}
       <div className="chat-layout">
         <div className="chat-card">
-          <div className="chat-header">
-            <Sparkles size={16} style={{ color: 'var(--color-primary)' }} /> AI Property Assistant
-          </div>
-          <div className="chat-messages" ref={boxRef}>
-            {messages.map((m, i) => (
-              <div key={i}>
-                <div className={`chat-bubble ${m.role}`}>
-                  {m.role === 'ai' && <Bot size={13} style={{ display: 'inline', marginRight: 6, verticalAlign: -2, color: 'var(--color-primary)' }} />}
-                  {m.text}
+          <div className="chat-header"><Sparkles size={16}/> PropertyX AI property intelligence</div>
+          <div className="chat-messages" ref={boxRef} aria-live="polite">
+            {messages.map((message,index)=>(
+              <div key={index}>
+                <div className={`chat-bubble ${message.role}`}>
+                  {message.role==='ai' && <Bot size={13} style={{display:'inline',marginRight:6,verticalAlign:-2}}/>}
+                  {message.text}
                 </div>
-                {m.results?.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12, marginBottom: 4 }}>
-                    {m.results.map((r) => (
-                      <Link to={`/property/${r.id}`} className="match-result" key={r.id}>
-                        {r.images?.[0] && <img src={r.images[0]} alt={r.title} />}
-                        <div className="mr-info">
-                          <div className="mr-title">{r.title}</div>
-                          <div className="mr-meta">{r.price_label} · {r.location || r.city} · {r.property_type}</div>
-                          <div className="match-explainer">
-                            {r.match_score ? <span className="chip green">{r.match_score}% match</span> : null}
-                            {r.beds ? <span className="chip">{r.beds} bed</span> : null}
-                            {r.area ? <span className="chip">{r.area} {r.area_unit}</span> : null}
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
+                {message.results?.length>0 && <div className="ai-result-list">
+                  {message.results.map((property)=><Link to={`/property/${property.id}`} className="match-result" key={property.id}>
+                    {property.images?.[0] && <img src={property.images[0]} alt={property.title} loading="lazy"/>}
+                    <div className="mr-info"><b className="mr-title">{property.title}</b>
+                      <span className="mr-meta">{property.price_label || property.price} · {[property.city,property.country].filter(Boolean).join(', ')}</span>
+                      <span className="mr-meta">{[property.property_type,property.beds ? `${property.beds} bed` : null].filter(Boolean).join(' · ')}</span>
+                    </div>
+                  </Link>)}
+                </div>}
               </div>
             ))}
-            {typing && <div className="chat-bubble ai" style={{ color: 'var(--color-text-muted)' }}>Searching real listings…</div>}
+            {typing && <div className="chat-bubble ai">Searching approved live listings and interpreting your requirements…</div>}
           </div>
-          <form
-            className="chat-input-bar"
-            onSubmit={(e) => { e.preventDefault(); run(input); }}
-          >
-            <input
-              placeholder="Describe what you're looking for…"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-            />
-            <button className="chat-send" type="submit" aria-label="Send"><Send size={16} /></button>
+          <form className="chat-input-bar" onSubmit={(event)=>{event.preventDefault();run(input);}}>
+            <input value={input} onChange={(event)=>setInput(event.target.value)} maxLength={500} placeholder="Ask about a property, budget or location…" />
+            <button className="chat-send" type="submit" aria-label="Send search" disabled={typing || !input.trim()}><Send size={16}/></button>
           </form>
         </div>
-
         <aside>
-          <div className="side-card">
-            <h4>Try asking</h4>
-            {SUGGESTIONS.map((s) => (
-              <button key={s} className="suggestion-chip" onClick={() => run(s)}>{s}</button>
-            ))}
-          </div>
-          <div className="side-card">
-            <h4><Info size={14} style={{ verticalAlign: -2 }} /> How it works</h4>
-            <p style={{ fontSize: 13, lineHeight: 21, color: 'var(--color-text-muted)' }}>
-              The assistant interprets your message into search filters, queries only real PropX listings, and never invents
-              property. When results are thin it relaxes criteria and tells you exactly what changed.
-            </p>
-          </div>
+          <div className="side-card"><h4>Try asking</h4>{SUGGESTIONS.map((item)=><button className="suggestion-chip" key={item} onClick={()=>run(item)} disabled={typing}>{item}</button>)}</div>
+          <div className="side-card"><h4><Info size={14}/> How it works</h4><p className="muted-copy">The AI converts your request into search filters and can explain matches using the actual listing fields. It cannot verify ownership, guarantee returns or make up inventory.</p></div>
         </aside>
       </div>
     </div>
