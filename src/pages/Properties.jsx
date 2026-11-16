@@ -89,7 +89,7 @@ export default function Properties() {
   const saveSearch=async()=>{
     if(!user){setSavedMessage('Sign in to save this search.');return;}
     try{
-      const description=[filters.query,filters.city,filters.country].filter(Boolean).join(' · ');
+      const description=[filters.query,filters.city,filters.country||getCountryName(filters.countryCode)].filter(Boolean).join(' · ');
       const saved = await createSavedSearch(user.id,description || 'Property search',{...filters,listingType:tab},{alertEnabled,alertFrequency});
       setSavedMessage(saved.alert_enabled
         ? `Search saved. In-app ${saved.alert_frequency} alerts are enabled for new approved matches.`
@@ -155,7 +155,7 @@ export default function Properties() {
           <h4><SlidersHorizontal size={14}/> Refine results</h4>
           <label className="form-field"><span>Country</span><select className="input" value={filters.countryCode} onChange={(event)=>{
             const code=event.target.value;
-            setFilters((current)=>({...current,countryCode:code,country:code?getCountryName(code):''}));
+            setFilters((current)=>({...current,countryCode:code,country:''}));
           }}><option value="">All countries</option>{COUNTRY_OPTIONS.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label className="form-field"><span>City</span><input className="input" value={filters.city} onChange={(e)=>change('city',e.target.value)} placeholder="Any city"/></label>
           <label className="form-field"><span>Listing currency</span><select className="input" value={filters.currencyCode} onChange={(e)=>change('currencyCode',e.target.value)}><option value="">All currencies</option>{CURRENCY_CODES.map((code)=><option key={code} value={code}>{code}</option>)}</select></label>
