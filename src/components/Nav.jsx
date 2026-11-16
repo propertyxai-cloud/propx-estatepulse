@@ -40,6 +40,7 @@ export default function Nav() {
               {l.label}
             </NavLink>
           ))}
+          {user && <NavLink to="/ceo" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>CEO HQ</NavLink>}
         </nav>
 
         <div className="nav-actions">
@@ -69,6 +70,7 @@ export default function Nav() {
             {l.label}
           </NavLink>
         ))}
+        {user && <NavLink to="/ceo" className="nav-link" onClick={() => setOpen(false)}>CEO HQ</NavLink>}
         <button className="btn btn-primary btn-post-ad" onClick={() => { setOpen(false); navigate('/login'); }}>
           <Plus size={15} /> Post Ad
         </button>
