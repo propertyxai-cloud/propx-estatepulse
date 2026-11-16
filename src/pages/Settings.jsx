@@ -173,23 +173,36 @@ export default function Settings(){
   const exportData=async()=>{
     setBusy(true);setError('');
     try{
+      const client=requireSupabase();
       const queries=await Promise.all([
-        requireSupabase().from('profiles').select('id,display_name,full_name,avatar_url,role,bio,phone,company_name,created_at,preferred_country_code,preferred_city,preferred_currency_code,preferred_timezone,preferred_language').eq('id',user.id).maybeSingle(),
-        requireSupabase().from('properties').select('*').or(`owner_id.eq.${user.id},posted_by.eq.${user.id}`),
-        requireSupabase().from('favorites').select('id,property_id,created_at').eq('user_id',user.id),
-        requireSupabase().from('saved_searches').select('id,query,filters,created_at').eq('user_id',user.id),
-        requireSupabase().from('inquiries').select('id,property_id,name,email,phone,message,status,created_at').or(`inquirer_id.eq.${user.id},user_id.eq.${user.id}`),
+        client.from('profiles').select('id,display_name,full_name,avatar_url,role,bio,phone,company_name,created_at,preferred_country_code,preferred_city,preferred_currency_code,preferred_timezone,preferred_language').eq('id',user.id).maybeSingle(),
+        client.from('properties').select('*').or(`owner_id.eq.${user.id},posted_by.eq.${user.id}`),
+        client.from('favorites').select('id,property_id,created_at').eq('user_id',user.id),
+        client.from('saved_searches').select('id,query,filters,created_at,name,alert_enabled,alert_frequency').eq('user_id',user.id),
+        client.from('inquiries').select('id,property_id,name,email,phone,message,status,created_at').or(`inquirer_id.eq.${user.id},user_id.eq.${user.id}`),
+        client.from('recently_viewed').select('id,property_id,viewed_at').eq('user_id',user.id),
+        client.from('notifications').select('id,type,title,body,link,resource_type,resource_id,read_at,created_at').eq('user_id',user.id),
+        client.from('broker_reviews').select('id,broker_id,property_id,rating,communication,professionalism,market_knowledge,review,moderation_status,created_at').eq('reviewer_id',user.id),
+        client.from('contact_messages').select('id,name,email,subject,message,status,created_at').eq('user_id',user.id),
+        client.from('agent_public_profiles').select('public_name,headline,bio,company_name,avatar_url,city,country_code,public_phone,website_url,is_published,created_at,updated_at').eq('user_id',user.id).maybeSingle(),
+        client.from('organization_members').select('organization_id,role,invited_by,created_at').eq('user_id',user.id),
+        client.from('organizations').select('id,name,slug,plan,created_by,settings,created_at,updated_at').limit(100),
+        client.from('ai_tasks').select('id,organization_id,task_type,status,input,output,model_provider,model_name,prompt_version,error_code,created_at,started_at,completed_at').eq('user_id',user.id).limit(100),
+        client.from('property_intelligence_reports').select('id,property_id,organization_id,report_type,country_code,currency_code,inputs,result,confidence,methodology_version,data_as_of,status,disclaimer,created_at,completed_at').eq('requested_by',user.id).limit(100),
+        client.from('payment_orders').select('id,merchant_reference,amount_minor,currency,status,provider,created_at,paid_at,refunded_at').eq('owner_id',user.id).limit(100),
+        client.from('subscriptions').select('id,plan_id,provider,status,currency,amount_minor,renews_at,ends_at,trial_ends_at,cancelled_at,paused_at,mode,created_at,updated_at').eq('user_id',user.id).limit(50),
       ]);
       for(const result of queries){if(result.error)throw result.error;}
-      downloadJson(`propertyx-data-export-${new Date().toISOString().slice(0,10)}.json`,{
-        exported_at:new Date().toISOString(),
-        profile:queries[0].data,
-        properties:queries[1].data||[],
-        favorites:queries[2].data||[],
-        saved_searches:queries[3].data||[],
-        inquiries:queries[4].data||[],
-      });
-      setMessage('Your account data export has been prepared.');
+      const names=[
+        'profile','properties','favorites','saved_searches','inquiries','recently_viewed',
+        'notifications','broker_reviews','support_messages','public_agent_profile',
+        'organization_memberships','organizations_created_or_joined','ai_tasks',
+        'property_intelligence_reports','payment_orders','subscriptions',
+      ];
+      const exportData={exported_at:new Date().toISOString()};
+      queries.forEach((result,index)=>{exportData[names[index]]=result.data??[];});
+      downloadJson(`propertyx-data-export-${new Date().toISOString().slice(0,10)}.json`,exportData);
+      setMessage('Your expanded account data export has been prepared.');
     }catch(err){setError(err.message||'Could not export your data.');}
     finally{setBusy(false);}
   };
