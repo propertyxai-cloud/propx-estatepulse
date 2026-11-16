@@ -268,7 +268,7 @@ export default function Settings(){
         <h3><KeyRound size={16}/> Authenticator app</h3>
         {mfaFactors.map((factor)=><div className="mfa-factor" key={factor.id}><span><CheckCircle2 size={16}/> {factor.friendly_name||'Authenticator'} · {factor.status}</span><button className="btn btn-outline btn-xs" type="button" disabled={mfaLoading} onClick={()=>disableMfa(factor.id)}>Remove</button></div>)}
         {mfaFactor?<>
-          {mfaQr&&<img className="mfa-qr" src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(mfaQr)}`} alt="Authenticator setup QR code"/>}
+          {mfaQr&&<img className="mfa-qr" src={mfaQr.startsWith("data:") ? mfaQr : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(mfaQr)}`} alt="Authenticator setup QR code"/>}
           <p className="sub">Secret key: <code>{mfaSecret}</code></p>
           <label className="form-field"><span>Six-digit authenticator code</span><input className="input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={mfaCode} onChange={(e)=>setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))}/></label>
           <button className="btn btn-primary" type="button" onClick={verifyMfa} disabled={mfaLoading||mfaCode.length!==6}>Verify and enable MFA</button>

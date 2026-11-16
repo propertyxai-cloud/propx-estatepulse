@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Bot, Send, Sparkles, Info, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchProperties, requireSupabase } from '../lib/data';
+import { normalizeAiSearchFilters, parseLocalFallback } from '../lib/aiSearchFilters';
 
 const SUGGESTIONS = [
   'Find a 5 marla house in Lahore under 2 crore with 4 bedrooms',
@@ -11,71 +12,6 @@ const SUGGESTIONS = [
   'Find properties with a published rental yield',
 ];
 
-function resolveCurrencyCode(query, city) {
-  const upper = query.toUpperCase();
-  const explicit = upper.match(/\b(PKR|AED|SAR|QAR|KWD|BHD|OMR|USD|CAD|AUD|NZD|GBP|EUR|INR|SGD|JPY|CNY|TRY|CHF)\b/);
-  if (explicit) return explicit[1];
-
-  const lower = query.toLowerCase();
-  if (/\b(pkr|pakistani rupees?|pakistan rupees?)\b/.test(lower)) return 'PKR';
-  if (/\b(aed|dirhams?|uae dirhams?)\b/.test(lower)) return 'AED';
-  if (/\b(sar|saudi riyals?|riyals?)\b/.test(lower)) return 'SAR';
-  if (/\b(usd|us dollars?|dollars?)\b/.test(lower)) return 'USD';
-  if (/\b(gbp|pounds?|sterling)\b/.test(lower)) return 'GBP';
-  if (/\b(eur|euros?)\b/.test(lower)) return 'EUR';
-  if (/\b(inr|indian rupees?)\b/.test(lower)) return 'INR';
-  if (/\b(sgd|singapore dollars?)\b/.test(lower)) return 'SGD';
-  if (/\b(jpy|yen)\b/.test(lower)) return 'JPY';
-  if (/\b(cad|canadian dollars?)\b/.test(lower)) return 'CAD';
-  if (/\b(aud|australian dollars?)\b/.test(lower)) return 'AUD';
-
-  const cityCurrency = {
-    lahore:'PKR', islamabad:'PKR', rawalpindi:'PKR', karachi:'PKR', multan:'PKR',
-    dubai:'AED', 'abu dhabi':'AED', london:'GBP', singapore:'SGD',
-    'new york':'USD', toronto:'CAD', sydney:'AUD', mumbai:'INR', delhi:'INR',
-  };
-  return cityCurrency[city] || null;
-}
-
-function parseLocalFallback(query) {
-  const lower = query.toLowerCase();
-  const filters = { query };
-  const cities = ['new york','abu dhabi','lahore','islamabad','rawalpindi','karachi','multan','dubai','london','singapore','mumbai','delhi','toronto','sydney'];
-  const city = cities.find((value) => lower.includes(value));
-  if (city) {
-    filters.city = city.replace(/\b\w/g, (letter) => letter.toUpperCase());
-    filters.currencyCode = resolveCurrencyCode(query, city);
-  } else {
-    filters.currencyCode = resolveCurrencyCode(query, null);
-  }
-
-  if (/\b(rent|rental|lease)\b/.test(lower)) filters.listingType = lower.includes('lease') ? 'lease' : 'rent';
-  else if (/\b(buy|sale|purchase)\b/.test(lower)) filters.listingType = 'sale';
-
-  const beds = query.match(/(\d+)\s*(?:bed|bedroom)/i);
-  if (beds) filters.beds = Number(beds[1]);
-
-  const money = query.match(/(?:under|below|max(?:imum)?|budget(?:\s+of)?)\s*([\d,.]+)\s*(crore|crores|cr|lakh|lac|lakhs|lacs|million|m|k)?/i);
-  if (money) {
-    const amount = Number(money[1].replace(/,/g, ''));
-    const unit = (money[2] || '').toLowerCase();
-    const multiplier = ['crore','crores','cr'].includes(unit) ? 10000000
-      : ['lakh','lac','lakhs','lacs'].includes(unit) ? 100000
-      : ['million','m'].includes(unit) ? 1000000
-      : unit === 'k' ? 1000 : 1;
-    if (Number.isFinite(amount) && amount > 0 && filters.currencyCode) {
-      filters.maxPrice = amount * multiplier;
-    } else if (Number.isFinite(amount) && amount > 0) {
-      filters.priceNeedsCurrency = true;
-    }
-  }
-
-  if (lower.includes('plot')) filters.propertyType = 'Residential Plot';
-  else if (lower.includes('apartment') || lower.includes('flat')) filters.propertyType = 'Apartment';
-  else if (lower.includes('farmhouse')) filters.propertyType = 'Farmhouse';
-  else if (lower.includes('house')) filters.propertyType = 'House';
-  return filters;
-}
 
 export default function AiSearch() {
   const { user } = useAuth();
@@ -108,22 +44,9 @@ export default function AiSearch() {
         if (error) throw error;
         const result = data?.result || {};
         const aiFilters = result.filters || {};
-        const currencyCandidate = String(aiFilters.currencyCode || aiFilters.currency_code || '').toUpperCase();
-        const currencyCode = /^[A-Z]{3}$/.test(currencyCandidate) ? currencyCandidate : null;
-        const hasBudget = aiFilters.minPrice != null || aiFilters.maxPrice != null;
-        filters = {
-          query: aiFilters.q || query,
-          city: aiFilters.city || null,
-          country: aiFilters.country || null,
-          currencyCode,
-          listingType: ['sale','rent','lease'].includes(String(aiFilters.type).toLowerCase()) ? String(aiFilters.type).toLowerCase() : null,
-          minPrice: currencyCode ? (aiFilters.minPrice ?? null) : null,
-          maxPrice: currencyCode ? (aiFilters.maxPrice ?? null) : null,
-          beds: aiFilters.beds ?? null,
-          baths: aiFilters.baths ?? null,
-          propertyType: aiFilters.propertyType ?? null,
-        };
-        if (hasBudget && !currencyCode) {
+        const normalized = normalizeAiSearchFilters(aiFilters, query);
+        filters = normalized.filters;
+        if (normalized.hasBudgetWithoutCurrency) {
           setNotice('I found a budget but could not establish its currency. I searched without a price filter to avoid comparing different currencies.');
         }
         explanation = result.explanation || '';
