@@ -1,103 +1,82 @@
-import { useEffect, useState } from 'react';
-import { Info, TrendingUp } from 'lucide-react';
+import { useEffect,useState } from 'react';
+import { Info,TrendingUp,Globe2 } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
-import { fetchProperties } from '../lib/data';
+import { fetchProperties,formatCurrency } from '../lib/data';
 
-export default function Investor() {
-  const [properties, setProperties] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({
-    minRoi: '',
-    minYield: '',
-    maxPrice: '',
-    minPriceUnit: '',
-    possession: 'Any possession',
-    taggedOnly: false,
+export default function Investor(){
+  const [filters,setFilters]=useState({
+    countryCode:'',city:'',currencyCode:'',propertyType:'',
+    minRoi:'',minYield:'',minPrice:'',maxPrice:'',investmentOnly:false,
   });
+  const [properties,setProperties]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState('');
 
-  useEffect(() => {
-    setLoading(true);
-    fetchProperties({
-      investmentOnly: filters.taggedOnly || undefined,
-      minRoi: filters.minRoi || undefined,
-      minYield: filters.minYield || undefined,
-      maxPrice: filters.maxPrice ? Number(filters.maxPrice) * 10000000 : 0,
-    }).then((d) => {
-      let list = d;
-      if (filters.possession !== 'Any possession') {
-        list = list.filter((p) => (p.possession || 'Ready') === filters.possession);
-      }
-      setProperties(list);
-      setLoading(false);
-    });
-  }, [filters]);
+  useEffect(()=>{
+    let active=true;
+    setLoading(true);setError('');
+    const query={
+      investmentOnly:filters.investmentOnly||undefined,
+      minRoi:filters.minRoi?Number(filters.minRoi):undefined,
+      minYield:filters.minYield?Number(filters.minYield):undefined,
+      minPrice:filters.minPrice?Number(filters.minPrice):undefined,
+      maxPrice:filters.maxPrice?Number(filters.maxPrice):undefined,
+      countryCode:filters.countryCode||undefined,
+      city:filters.city||undefined,
+      currencyCode:filters.currencyCode||undefined,
+      propertyType:filters.propertyType||undefined,
+      limit:60,
+    };
+    if(query.minPrice!==undefined&&query.maxPrice!==undefined&&query.minPrice>query.maxPrice){
+      setError('Minimum price cannot be greater than maximum price.');
+      setProperties([]);setLoading(false);return()=>{active=false;};
+    }
+    if([filters.minRoi,filters.minYield].some((value)=>value!==''&&(!Number.isFinite(Number(value))||Number(value)<0||Number(value)>100))){
+      setError('ROI and rental yield filters must be between 0 and 100.');
+      setProperties([]);setLoading(false);return()=>{active=false;};
+    }
+    fetchProperties(query)
+      .then((rows)=>{if(active)setProperties(rows);})
+      .catch((err)=>{if(active){setProperties([]);setError(err.message||'Investment listing search is unavailable.');}})
+      .finally(()=>{if(active)setLoading(false);});
+    return()=>{active=false;};
+  },[filters]);
 
-  return (
-    <div className="container" style={{ paddingTop: 32, paddingBottom: 80 }}>
-      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 28 }}>
-        <TrendingUp size={22} style={{ color: 'var(--color-primary)', verticalAlign: -4 }} /> Investor Mode
-      </h1>
-      <div className="sub" style={{ color: 'var(--color-text-muted)', fontSize: 16, marginTop: 8 }}>
-        Discover listings by estimated ROI, rental yield, price per unit, and possession.
-      </div>
+  const change=(key,value)=>setFilters((old)=>({...old,[key]:value}));
+  const currency=filters.currencyCode||'';
 
-      <div className="disclaimer">
-        <Info size={16} style={{ flexShrink: 0, color: 'var(--color-primary)' }} />
-        Figures are estimates based on historical or AI-generated projections — not guaranteed returns. Always verify with a licensed advisor.
-      </div>
-
+  return(
+    <div className="container page-section">
+      <h1><TrendingUp size={22} style={{color:'var(--color-primary)',verticalAlign:-4}}/> Investor property discovery</h1>
+      <p className="sub" style={{marginTop:8}}>Find approved live properties with seller-supplied estimates. Price filters always use the selected listing currency; no automatic currency conversions or projected returns are invented.</p>
+      <div className="notice"><Info size={16}/> Estimated ROI and rental yield are supplied with individual listings and may be incomplete or unverified. They are not independently confirmed performance, guaranteed income, or financial advice.</div>
       <div className="investor-filters">
-        <div className="filter-field">
-          <label>Min ROI %</label>
-          <input className="input" type="number" placeholder="e.g. 8" value={filters.minRoi} onChange={(e) => setFilters({ ...filters, minRoi: e.target.value })} />
-        </div>
-        <div className="filter-field">
-          <label>Min Yield %</label>
-          <input className="input" type="number" placeholder="e.g. 5" value={filters.minYield} onChange={(e) => setFilters({ ...filters, minYield: e.target.value })} />
-        </div>
-        <div className="filter-field">
-          <label>Max entry price (Crore)</label>
-          <input className="input" type="number" placeholder="e.g. 3" value={filters.maxPrice} onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })} />
-        </div>
-        <div className="filter-field">
-          <label>Min price/unit</label>
-          <input className="input" type="number" placeholder="PKR" value={filters.minPriceUnit} onChange={(e) => setFilters({ ...filters, minPriceUnit: e.target.value })} />
-        </div>
-        <div className="filter-field">
-          <label>Possession</label>
-          <select className="select" value={filters.possession} onChange={(e) => setFilters({ ...filters, possession: e.target.value })}>
-            <option>Any possession</option><option>Ready</option><option>Under Construction</option>
-          </select>
-        </div>
-        <label className="checkbox-label" style={{ paddingBottom: 10 }}>
-          <input type="checkbox" checked={filters.taggedOnly} onChange={(e) => setFilters({ ...filters, taggedOnly: e.target.checked })} />
-          Investment-tagged listings only
-        </label>
-        <button className="btn btn-outline btn-sm" onClick={() => setFilters({ minRoi: '', minYield: '', maxPrice: '', minPriceUnit: '', possession: 'Any possession', taggedOnly: false })}>
-          Reset
-        </button>
+        <label className="form-field"><span><Globe2 size={13}/> Country code</span><input className="input" maxLength={2} value={filters.countryCode} onChange={(e)=>change('countryCode',e.target.value.toUpperCase())} placeholder="ISO-2, e.g. PK"/></label>
+        <label className="form-field"><span>City</span><input className="input" value={filters.city} onChange={(e)=>change('city',e.target.value)} placeholder="Any city"/></label>
+        <label className="form-field"><span>Currency</span><input className="input" maxLength={3} value={filters.currencyCode} onChange={(e)=>change('currencyCode',e.target.value.toUpperCase())} placeholder="ISO-4217, e.g. PKR"/></label>
+        <label className="form-field"><span>Property type</span><select className="input" value={filters.propertyType} onChange={(e)=>change('propertyType',e.target.value)}><option value="">Any type</option>{['House','Apartment','Residential Plot','Farmhouse','Commercial','Office','Penthouse'].map((type)=><option key={type}>{type}</option>)}</select></label>
+        <label className="form-field"><span>Minimum stated ROI (%)</span><input className="input" type="number" min="0" max="100" step="0.1" value={filters.minRoi} onChange={(e)=>change('minRoi',e.target.value)} placeholder="No minimum"/></label>
+        <label className="form-field"><span>Minimum stated yield (%)</span><input className="input" type="number" min="0" max="100" step="0.1" value={filters.minYield} onChange={(e)=>change('minYield',e.target.value)} placeholder="No minimum"/></label>
+        <label className="form-field"><span>Minimum asking price ({currency||'currency required'})</span><input className="input" type="number" min="0" step="any" value={filters.minPrice} onChange={(e)=>change('minPrice',e.target.value)} placeholder="No minimum"/></label>
+        <label className="form-field"><span>Maximum asking price ({currency||'currency required'})</span><input className="input" type="number" min="0" step="any" value={filters.maxPrice} onChange={(e)=>change('maxPrice',e.target.value)} placeholder="No maximum"/></label>
+        <label className="checkbox-label"><input type="checkbox" checked={filters.investmentOnly} onChange={(e)=>change('investmentOnly',e.target.checked)}/> Investment-tagged listings only</label>
+        <button className="btn btn-outline btn-sm" type="button" onClick={()=>setFilters({countryCode:'',city:'',currencyCode:'',propertyType:'',minRoi:'',minYield:'',minPrice:'',maxPrice:'',investmentOnly:false})}>Reset filters</button>
       </div>
-
-      <div className="results-head">
-        <span className="results-count">{loading ? '…' : `${properties.length} matches`}</span>
-      </div>
-
+      <div className="results-head"><span className="results-count">{loading?'Searching…':`${properties.length} approved listing matches`}</span></div>
+      {error&&<div className="form-error" role="alert">{error}</div>}
+      {!loading&&!error&&properties.length===0&&<div className="empty-state"><TrendingUp size={30}/><h2>No matching investment listings</h2><p>Only listings with approved moderation status are searchable. ROI and yield filters need the seller to have supplied those fields.</p></div>}
       <div className="prop-grid cols-3">
-        {properties.map((p) => (
-          <div key={p.id}>
-            <PropertyCard property={p} />
-            {(p.est_roi || p.est_yield) && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                {p.est_yield ? <span className="roi-badge">Est. Yield <b>{p.est_yield}%</b></span> : null}
-                {p.est_roi ? <span className="roi-badge">Est. ROI <b>{p.est_roi}%</b></span> : null}
-              </div>
-            )}
+        {properties.map((property)=>(
+          <div key={property.id}>
+            <PropertyCard property={property}/>
+            {(property.est_roi!==null||property.est_yield!==null)&&<div className="roi-data-row">
+              {property.est_yield!==null&&<span className="roi-badge">Stated yield <b>{property.est_yield}%</b></span>}
+              {property.est_roi!==null&&<span className="roi-badge">Stated ROI <b>{property.est_roi}%</b></span>}
+              <span className="roi-currency">{formatCurrency(property.price,property.currency_code||property.currency)}</span>
+            </div>}
           </div>
         ))}
       </div>
-      {!loading && !properties.length && (
-        <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 48 }}>No investment matches found for these filters.</p>
-      )}
     </div>
   );
 }

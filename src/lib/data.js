@@ -32,7 +32,7 @@ function cleanSearchTerm(value) {
 function addTextSearch(query, value) {
   const term = cleanSearchTerm(value);
   if (!term) return query;
-  const pattern = `%*${term}*%`;
+  const pattern = `%${term}%`;
   return query.or([
     `title.ilike.${pattern}`,
     `city.ilike.${pattern}`,
@@ -98,7 +98,7 @@ export async function fetchProperty(id) {
   let request = client.from('properties').select('*').eq('id', id);
   if (authData?.user?.id) {
     const uid = authData.user.id;
-    request = request.or(`moderation_status.eq.approved,and(owner_id.eq.${uid}),and(posted_by.eq.${uid})`);
+    request = request.or(`moderation_status.eq.approved,owner_id.eq.${uid},posted_by.eq.${uid}`);
   } else {
     request = request.eq('moderation_status', 'approved').is('archived_at', null);
   }
