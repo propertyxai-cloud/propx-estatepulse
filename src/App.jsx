@@ -1,28 +1,28 @@
 import { Navigate,Route,Routes,useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { AuthProvider,useAuth } from './context/AuthContext';
 import Nav from './components/Nav';
 import Footer from './components/Footer';
-import Home from './pages/Home';
-import Properties from './pages/Properties';
-import PropertyDetail from './pages/PropertyDetail';
-import AiSearch from './pages/AiSearch';
-import PriceTrends from './pages/PriceTrends';
-import MapSearch from './pages/MapSearch';
-import Investor from './pages/Investor';
-import BrokerRatings from './pages/BrokerRatings';
-import Societies from './pages/Societies';
-import Login from './pages/Login';
-import AgentPortal from './pages/AgentPortal';
-import PostProperty from './pages/PostProperty';
-import Favorites from './pages/Favorites';
-import Settings from './pages/Settings';
-import Contact from './pages/Contact';
-import ReportProperty from './pages/ReportProperty';
-import Billing from './pages/Billing';
-import Privacy from './pages/Privacy';
-import Terms from './pages/Terms';
-import NotFound from './pages/NotFound';
+const Home = lazy(() => import('./pages/Home'));
+const Properties = lazy(() => import('./pages/Properties'));
+const PropertyDetail = lazy(() => import('./pages/PropertyDetail'));
+const AiSearch = lazy(() => import('./pages/AiSearch'));
+const PriceTrends = lazy(() => import('./pages/PriceTrends'));
+const MapSearch = lazy(() => import('./pages/MapSearch'));
+const Investor = lazy(() => import('./pages/Investor'));
+const BrokerRatings = lazy(() => import('./pages/BrokerRatings'));
+const Societies = lazy(() => import('./pages/Societies'));
+const Login = lazy(() => import('./pages/Login'));
+const AgentPortal = lazy(() => import('./pages/AgentPortal'));
+const PostProperty = lazy(() => import('./pages/PostProperty'));
+const Favorites = lazy(() => import('./pages/Favorites'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Contact = lazy(() => import('./pages/Contact'));
+const ReportProperty = lazy(() => import('./pages/ReportProperty'));
+const Billing = lazy(() => import('./pages/Billing'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 function SuspendedAccountNotice(){
   const {profile,signOut}=useAuth();
@@ -64,6 +64,7 @@ function AppRoutes(){
     <>
       <Nav/>
       <main>
+        <Suspense fallback={<div className='container page-status'>Loading PropertyX page…</div>}>
         <Routes>
           <Route path="/" element={<Home/>}/>
           <Route path="/properties" element={<Properties/>}/>
@@ -93,6 +94,7 @@ function AppRoutes(){
           <Route path="/about" element={<div className="container page-status"><h1>About PropertyX</h1><p>PropertyX is building a data-led property marketplace for buyers, sellers, investors and agents across countries and cities.</p></div>}/>
           <Route path="*" element={<NotFound/>}/>
         </Routes>
+        </Suspense>
       </main>
       <Footer/>
     </>
