@@ -340,21 +340,29 @@ export async function uploadPropertyImages(files, userId) {
   const accepted = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
   const uploaded = [];
 
-  for (const file of list) {
-    if (!accepted.has(file.type)) throw new Error(`${file.name}: use JPG, PNG, WebP or AVIF images.`);
-    if (file.size > 15 * 1024 * 1024) throw new Error(`${file.name}: image must be 15 MB or smaller.`);
-    const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif' })[file.type];
-    const path = `${userId}/${crypto.randomUUID()}.${extension}`;
-    const { error } = await client.storage.from('property-images').upload(path, file, {
-      cacheControl: '31536000',
-      contentType: file.type,
-      upsert: false,
-    });
-    if (error) throw error;
-    const { data } = client.storage.from('property-images').getPublicUrl(path);
-    uploaded.push({ path, url: data.publicUrl });
+  try {
+    for (const file of list) {
+      if (!accepted.has(file.type)) throw new Error(`${file.name}: use JPG, PNG, WebP or AVIF images.`);
+      if (file.size > 15 * 1024 * 1024) throw new Error(`${file.name}: image must be 15 MB or smaller.`);
+      const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif' })[file.type];
+      const path = `${userId}/${crypto.randomUUID()}.${extension}`;
+      const { error } = await client.storage.from('property-images').upload(path, file, {
+        cacheControl: '31536000',
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = client.storage.from('property-images').getPublicUrl(path);
+      uploaded.push({ path, url: data.publicUrl });
+    }
+    return uploaded;
+  } catch (uploadError) {
+    if (uploaded.length) {
+      const { error: cleanupError } = await client.storage.from('property-images').remove(uploaded.map((item) => item.path));
+      if (cleanupError) console.warn('Could not clean up partial property image upload:', cleanupError);
+    }
+    throw uploadError;
   }
-  return uploaded;
 }
 
 export async function removeUploadedImages(paths) {
