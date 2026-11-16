@@ -98,6 +98,9 @@ serve(async (req) => {
   if (minPrice !== null && (!Number.isFinite(minPrice) || minPrice < 0)) return json({ error: "invalid_min_price" }, 400);
   if (maxPrice !== null && (!Number.isFinite(maxPrice) || maxPrice < 0)) return json({ error: "invalid_max_price" }, 400);
   if (minPrice !== null && maxPrice !== null && minPrice > maxPrice) return json({ error: "invalid_price_range" }, 400);
+  if ((minPrice !== null || maxPrice !== null) && !currencyCode) {
+    return json({ error: "currency_required_for_price_filter" }, 400);
+  }
   if (listingType && !/^[a-zA-Z _-]{1,30}$/.test(listingType)) return json({ error: "invalid_listing_type" }, 400);
   if (propertyType && !/^[a-zA-Z _-]{1,40}$/.test(propertyType)) return json({ error: "invalid_property_type" }, 400);
 
@@ -105,6 +108,7 @@ serve(async (req) => {
   url.searchParams.set("select", "id,title,listing_type,property_type,price,price_label,currency,currency_code,city,country,country_code,region,location,address,area,area_unit,beds,baths,description,features,images,lat,lng,featured,sponsored,verified,availability,created_at");
   url.searchParams.set("moderation_status", "eq.approved");
   url.searchParams.set("archived_at", "is.null");
+  url.searchParams.set("availability", "in.(available,under_offer)");
   url.searchParams.set("order", "featured.desc,created_at.desc");
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("offset", String(offset));
