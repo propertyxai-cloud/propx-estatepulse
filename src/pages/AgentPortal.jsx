@@ -7,7 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { fetchMyProperties,fetchOwnerInquiries,fetchNotifications,formatCurrency,formatDate,requireSupabase } from '../lib/data';
 
-const LEAD_STATUSES=['new','contacted','qualified','closed','spam'];
+const LEAD_STATUSES=['new','contacted','viewing','negotiating','converted','closed','lost'];
 const PROPERTY_DECISIONS=['approved','rejected'];
 
 function StatusPill({value}){
