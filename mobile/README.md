@@ -13,10 +13,18 @@ PropertyX now includes a Capacitor 8 native container configuration for Android 
 1. Copy `.env.example` to `.env.local` and configure the public Supabase URL and publishable key.
 2. Run `npm ci`.
 3. Generate a native project once: `npm run mobile:add:android` and/or `npm run mobile:add:ios`.
-4. Build and sync: `npm run mobile:sync`.
+4. Register the callback scheme with `npm run mobile:configure:android` and/or `npm run mobile:configure:ios`.
+5. Build and sync: `npm run mobile:sync`.
 5. Open Android Studio / Xcode with `npm run mobile:open:android` / `npm run mobile:open:ios`.
 
 Native platform directories should be committed after a maintainer reviews the generated project and app identifiers. The mobile CI workflow currently generates projects ephemerally and produces unsigned internal test builds; it does not sign or submit to either store.
+
+## Native authentication redirect
+- Native callback URI: `com.propertyxai.marketplace://auth/callback`.
+- Add this exact URI to Supabase Authentication URL Configuration → Redirect URLs.
+- Keep the production web callback URL allowlisted too.
+- Google sign-in opens the system browser and returns through the native app callback listener. Google's configured provider redirect URI remains the Supabase Auth callback URL shown in the Supabase dashboard.
+- The Android manifest and iOS URL Types are patched by `scripts/configure-capacitor-deeplinks.mjs` during CI and by the platform-specific configure scripts locally.
 
 ## Release gates
 - Confirm the unique app identifier `com.propertyxai.marketplace` is owned by PropertyX before store registration.

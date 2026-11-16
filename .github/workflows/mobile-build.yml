@@ -47,6 +47,8 @@ jobs:
         run: npm run build
       - name: Generate Android project
         run: npx cap add android
+      - name: Register native OAuth deep link
+        run: node scripts/configure-capacitor-deeplinks.mjs android
       - name: Sync Capacitor project
         run: npx cap sync android
       - name: Set up Java
@@ -87,6 +89,8 @@ jobs:
         run: npm run build
       - name: Generate iOS project using Swift Package Manager
         run: npx cap add ios
+      - name: Register native OAuth deep link
+        run: node scripts/configure-capacitor-deeplinks.mjs ios
       - name: Sync Capacitor project
         run: npx cap sync ios
       - name: Locate Xcode project

@@ -1,5 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { supabase } from '../lib/supabase';
+
+const NATIVE_AUTH_CALLBACK = 'com.propertyxai.marketplace://auth/callback';
 
 const AuthContext = createContext(null);
 
@@ -27,6 +32,39 @@ export function AuthProvider({ children }) {
     } finally {
       setProfileLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!supabase || !Capacitor.isNativePlatform()) return undefined;
+    let alive = true;
+    let listener;
+
+    CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+      if (!alive || typeof url !== 'string' || !url.startsWith(NATIVE_AUTH_CALLBACK)) return;
+      try {
+        const callbackUrl = new URL(url);
+        const { error } = await supabase.auth.exchangeCodeForSession(url);
+        if (error) throw error;
+
+        if (callbackUrl.searchParams.get('type') === 'recovery') {
+          window.location.replace('/login?recovery=1');
+        } else {
+          window.location.replace('/agent-portal');
+        }
+      } catch (error) {
+        console.error('PropertyX native authentication callback failed:', error);
+      }
+    }).then((value) => {
+      if (alive) listener = value;
+      else value.remove();
+    }).catch((error) => {
+      console.error('Could not register PropertyX native auth callback:', error);
+    });
+
+    return () => {
+      alive = false;
+      listener?.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -82,7 +120,9 @@ export function AuthProvider({ children }) {
     if (!['buyer', 'seller', 'investor', 'agent'].includes(role)) {
       throw new Error('Choose a valid account type.');
     }
-    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined;
+    const redirectTo = Capacitor.isNativePlatform()
+      ? NATIVE_AUTH_CALLBACK
+      : (typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined);
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
@@ -101,17 +141,25 @@ export function AuthProvider({ children }) {
 
   const signInWithGoogle = async () => {
     if (!supabase) throw new Error('Authentication is not configured on this deployment.');
-    const { error } = await supabase.auth.signInWithOAuth({
+    const isNative = Capacitor.isNativePlatform();
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/agent-portal` },
+      options: {
+        redirectTo: isNative ? NATIVE_AUTH_CALLBACK : `${window.location.origin}/agent-portal`,
+        skipBrowserRedirect: isNative,
+      },
     });
     if (error) throw error;
+    if (isNative) {
+      if (!data?.url) throw new Error('The identity provider did not return an authorization URL.');
+      await Browser.open({ url: data.url });
+    }
   };
 
   const resetPassword = async (email) => {
     if (!supabase) throw new Error('Authentication is not configured on this deployment.');
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/login?recovery=1`,
+      redirectTo: Capacitor.isNativePlatform() ? NATIVE_AUTH_CALLBACK : `${window.location.origin}/login?recovery=1`,
     });
     if (error) throw error;
   };
