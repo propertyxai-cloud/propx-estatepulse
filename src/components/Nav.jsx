@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Bell, Building2, Heart, Menu, Plus, Settings, User, X } from 'lucide-react';
+import { Bell, Building2, CreditCard, Heart, Menu, Plus, Settings, User, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const LINKS=[
@@ -32,7 +32,7 @@ export default function Nav(){
           <button className="icon-btn" aria-label="Saved properties" onClick={()=>navigate(user?'/favorites':'/login')}><Heart size={17}/></button>
           <button className="btn btn-primary btn-post-ad" onClick={()=>navigate(user?'/post-property':'/login')}><Plus size={15}/> Post property</button>
           <button className="avatar-btn" aria-label={user?'Open account dashboard':'Sign in'} onClick={account}>{profile?.avatar_url?<img src={profile.avatar_url} alt=""/>:<User size={17}/>}</button>
-          {user&&<button className="icon-btn" aria-label="Settings" onClick={()=>navigate('/settings')}><Settings size={16}/></button>}
+          {user&&<button className="icon-btn" aria-label="Settings" onClick={()=>navigate('/settings')}><Settings size={16}/></button>}{user&&<button className="icon-btn" aria-label="Billing" onClick={()=>navigate('/billing')}><CreditCard size={16}/></button>}
           <button className="hamburger" aria-label="Toggle menu" aria-expanded={open} onClick={()=>setOpen(!open)}>{open?<X size={19}/>:<Menu size={19}/>}</button>
         </div>
       </div>

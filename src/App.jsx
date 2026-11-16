@@ -18,6 +18,9 @@ import Favorites from './pages/Favorites';
 import Settings from './pages/Settings';
 import Contact from './pages/Contact';
 import ReportProperty from './pages/ReportProperty';
+import Billing from './pages/Billing';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 import NotFound from './pages/NotFound';
 
 function ProtectedRoute({children}){
@@ -48,6 +51,9 @@ function AppRoutes(){
           <Route path="/report-property/:id" element={<ProtectedRoute><ReportProperty/></ProtectedRoute>}/>
           <Route path="/favorites" element={<ProtectedRoute><Favorites/></ProtectedRoute>}/>
           <Route path="/settings" element={<ProtectedRoute><Settings/></ProtectedRoute>}/>
+          <Route path="/billing" element={<ProtectedRoute><Billing/></ProtectedRoute>}/>
+          <Route path="/privacy" element={<Privacy/>}/>
+          <Route path="/terms" element={<Terms/>}/>
           <Route path="/rentals" element={<Navigate to="/properties?type=rent" replace/>}/>
           <Route path="/portfolio" element={<ProtectedRoute><AgentPortal/></ProtectedRoute>}/>
           <Route path="/roi-battle" element={<Navigate to="/investor" replace/>}/>
