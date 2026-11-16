@@ -55,7 +55,8 @@ export async function fetchProperties(filters = {}) {
     .from('properties')
     .select('*')
     .eq('moderation_status', 'approved')
-    .is('archived_at', null);
+    .is('archived_at', null)
+    .in('availability', ['available', 'under_offer']);
 
   if (listingType && listingType !== 'all') request = request.eq('listing_type', listingType);
   if (city && city !== 'All Cities') request = request.ilike('city', `%${cleanSearchTerm(city)}%`);
