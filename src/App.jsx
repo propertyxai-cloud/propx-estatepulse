@@ -1,4 +1,5 @@
-import { Navigate,Route,Routes } from 'react-router-dom';
+import { Navigate,Route,Routes,useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { AuthProvider,useAuth } from './context/AuthContext';
 import Nav from './components/Nav';
 import Footer from './components/Footer';
@@ -23,10 +24,39 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import NotFound from './pages/NotFound';
 
+function SuspendedAccountNotice(){
+  const {profile,signOut}=useAuth();
+  const navigate=useNavigate();
+  const [error,setError]=useState('');
+  const exitToSupport=async()=>{
+    setError('');
+    try{
+      await signOut();
+      navigate('/contact',{replace:true});
+    }catch(err){
+      setError(err.message||'Could not sign out. Please refresh and try again.');
+    }
+  };
+  return (
+    <section className="container page-section narrow">
+      <div className="dashboard-panel suspension-notice" role="alert">
+        <h1>Account access is temporarily suspended</h1>
+        <p>Your PropertyX account has been restricted from creating or changing marketplace records while this review is active.</p>
+        <p>Public property browsing remains available. To contact support, sign out first and submit the support form as a guest.</p>
+        {profile?.suspended_reason&&<p><b>Notice:</b> {profile.suspended_reason}</p>}
+        {error&&<div className="form-error" role="alert">{error}</div>}
+        <button className="btn btn-primary" type="button" onClick={exitToSupport}>Sign out and contact support</button>
+      </div>
+    </section>
+  );
+}
+
 function ProtectedRoute({children}){
-  const {user,loading}=useAuth();
-  if(loading)return <div className="container page-status">Restoring your secure session…</div>;
-  return user?children:<Navigate to="/login" replace/>;
+  const {user,profile,loading,profileLoading}=useAuth();
+  if(loading||(user&&profileLoading))return <div className="container page-status">Restoring your secure session…</div>;
+  if(!user)return <Navigate to="/login" replace/>;
+  if(profile?.suspended_at)return <SuspendedAccountNotice/>;
+  return children;
 }
 
 function AppRoutes(){
