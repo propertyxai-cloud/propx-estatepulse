@@ -1,0 +1,16 @@
+project_id = "gsotueowzyajkugxslpz"
+
+[functions.ai-search]
+verify_jwt = false
+
+[functions.ai-assistant]
+verify_jwt = true
+
+[functions.admin-users]
+verify_jwt = false
+
+[functions.lemonsqueezy-checkout]
+verify_jwt = false
+
+[functions.lemonsqueezy-webhook]
+verify_jwt = false

@@ -1,0 +1,60 @@
+name: PropertyX CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, "codex/**"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: propertyx-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Tests and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Regenerate lockfile with patched dependency pins
+        run: npm install --package-lock-only --ignore-scripts --no-audit
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Report dependency security advisories
+        run: |
+          npm audit --json > /tmp/propertyx-audit.json || true
+          node -e "const a=require('/tmp/propertyx-audit.json'); const rows=Object.entries(a.vulnerabilities||{}).map(([name,v])=>({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable,via:v.via})); console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities,packages:rows},null,2));"
+      - name: Enforce high and critical dependency audit
+        run: npm audit --audit-level=high
+      - name: Run unit tests
+        run: npm test
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Commit the tested lockfile to the same-repository PR branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfile already matches patched dependency pins."
+            exit 0
+          fi
+          git commit -m "chore(deps): regenerate lockfile with patched packages"
+          git push origin "HEAD:$PR_BRANCH"
+

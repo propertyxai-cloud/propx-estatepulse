@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /agent-portal
+Disallow: /settings
+Disallow: /billing
+Disallow: /favorites
+Disallow: /post-property
+Disallow: /login
+Disallow: /report-property/

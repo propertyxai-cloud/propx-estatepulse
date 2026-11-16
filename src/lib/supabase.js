@@ -1,6 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const url = import.meta.env.VITE_SUPABASE_URL?.trim();
+const publishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
-export const supabase = url && anonKey ? createClient(url, anonKey) : null;
+export const supabase = url && publishableKey
+  ? createClient(url, publishableKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+      global: {
+        headers: { 'X-Client-Info': 'propertyx-web' },
+      },
+    })
+  : null;
+
+export const isSupabaseConfigured = Boolean(supabase);

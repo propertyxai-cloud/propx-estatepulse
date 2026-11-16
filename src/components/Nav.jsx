@@ -1,77 +1,44 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Building2, Heart, Monitor, Menu, Plus, User, X } from 'lucide-react';
+import { Bell, Building2, CreditCard, Heart, Menu, Plus, Settings, User, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const LINKS = [
-  { to: '/ai-search', label: 'AI Search' },
-  { to: '/properties', label: 'Buy' },
-  { to: '/properties?type=rent', label: 'Rent' },
-  { to: '/rentals', label: 'Rentals' },
-  { to: '/investor', label: 'Investor' },
-  { to: '/map-search', label: 'Map' },
-  { to: '/ai-search', label: 'AI Advisor' },
-  { to: '/price-trends', label: 'Trends' },
-  { to: '/heatmap', label: 'Heatmap' },
-  { to: '/auctions', label: 'Auctions' },
-  { to: '/community', label: 'Community' },
+const LINKS=[
+  {to:'/ai-search',label:'AI Search'},
+  {to:'/properties',label:'Buy'},
+  {to:'/properties?type=rent',label:'Rent'},
+  {to:'/investor',label:'Invest'},
+  {to:'/map-search',label:'Map'},
+  {to:'/price-trends',label:'Market'},
+  {to:'/societies',label:'Societies'},
+  {to:'/broker-ratings',label:'Agents'},
 ];
 
-export default function Nav() {
-  const [open, setOpen] = useState(false);
-  const { user } = useAuth();
-  const navigate = useNavigate();
+export default function Nav(){
+  const [open,setOpen]=useState(false);
+  const {user,profile}=useAuth();
+  const navigate=useNavigate();
+  const account=()=>navigate(user?'/agent-portal':'/login');
 
-  return (
+  return(
     <header className="nav">
       <div className="nav-inner">
-        <Link to="/" className="logo" onClick={() => setOpen(false)}>
-          <span className="logo-mark"><Building2 size={18} /></span>
-          <span className="logo-text">PropX.pk</span>
-        </Link>
-
-        <nav className="nav-links">
-          {LINKS.map((l) => (
-            <NavLink
-              key={l.label}
-              to={l.to}
-              className={({ isActive }) => `nav-link ${isActive && l.to.split('?')[0] !== '/properties' ? 'active' : ''}`}
-            >
-              {l.label}
-            </NavLink>
-          ))}
+        <Link to="/" className="logo" onClick={()=>setOpen(false)}><span className="logo-mark"><Building2 size={18}/></span><span className="logo-text">PropertyX</span></Link>
+        <nav className="nav-links" aria-label="Main navigation">
+          {LINKS.map((link)=><NavLink key={link.to+link.label} to={link.to} className={({isActive})=>`nav-link ${isActive?'active':''}`}>{link.label}</NavLink>)}
         </nav>
-
         <div className="nav-actions">
-          <button className="icon-btn" aria-label="Notifications"><Monitor size={17} /></button>
-          <button className="icon-btn" aria-label="Favorites" onClick={() => navigate(user ? '/properties' : '/login')}>
-            <Heart size={17} />
-          </button>
-          <button className="btn btn-primary btn-post-ad" onClick={() => navigate('/login')}>
-            <Plus size={15} /> Post Ad
-          </button>
-          <button
-            className="avatar-btn"
-            aria-label="Account"
-            onClick={() => navigate(user ? '/agent-portal' : '/login')}
-          >
-            <User size={17} />
-          </button>
-          <button className="hamburger" onClick={() => setOpen(!open)} aria-label="Menu">
-            {open ? <X size={19} /> : <Menu size={19} />}
-          </button>
+          {user&&<button className="icon-btn" aria-label="Notifications and dashboard" onClick={()=>navigate('/agent-portal')}><Bell size={17}/></button>}
+          <button className="icon-btn" aria-label="Saved properties" onClick={()=>navigate(user?'/favorites':'/login')}><Heart size={17}/></button>
+          <button className="btn btn-primary btn-post-ad" onClick={()=>navigate(user?'/post-property':'/login')}><Plus size={15}/> Post property</button>
+          <button className="avatar-btn" aria-label={user?'Open account dashboard':'Sign in'} onClick={account}>{profile?.avatar_url?<img src={profile.avatar_url} alt=""/>:<User size={17}/>}</button>
+          {user&&<button className="icon-btn" aria-label="Settings" onClick={()=>navigate('/settings')}><Settings size={16}/></button>}{user&&<button className="icon-btn" aria-label="Billing" onClick={()=>navigate('/billing')}><CreditCard size={16}/></button>}
+          <button className="hamburger" aria-label="Toggle menu" aria-expanded={open} onClick={()=>setOpen(!open)}>{open?<X size={19}/>:<Menu size={19}/>}</button>
         </div>
       </div>
-
-      <div className={`mobile-menu ${open ? 'open' : ''}`}>
-        {LINKS.map((l) => (
-          <NavLink key={l.label} to={l.to} className="nav-link" onClick={() => setOpen(false)}>
-            {l.label}
-          </NavLink>
-        ))}
-        <button className="btn btn-primary btn-post-ad" onClick={() => { setOpen(false); navigate('/login'); }}>
-          <Plus size={15} /> Post Ad
-        </button>
+      <div className={`mobile-menu ${open?'open':''}`}>
+        {LINKS.map((link)=><NavLink key={link.to+link.label} to={link.to} className="nav-link" onClick={()=>setOpen(false)}>{link.label}</NavLink>)}
+        <button className="btn btn-primary btn-post-ad" onClick={()=>{setOpen(false);navigate(user?'/post-property':'/login');}}><Plus size={15}/> Post property</button>
       </div>
     </header>
   );

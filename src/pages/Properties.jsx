@@ -1,178 +1,186 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Grid3X3, List, Map as MapIcon, Mic, Search, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { BookmarkPlus, Grid3X3, List, Map as MapIcon, Search, SlidersHorizontal } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
-import { fetchProperties } from '../lib/data';
+import { createSavedSearch, fetchPropertiesPage } from '../lib/data';
+import { COUNTRY_OPTIONS,CURRENCY_CODES,getCountryName } from '../lib/localeData';
+import { useAuth } from '../context/AuthContext';
 
-const TYPE_OPTIONS = ['All Types', 'House', 'Apartment', 'Residential Plot', 'Farmhouse'];
-const CITY_OPTIONS = ['All Cities', 'Lahore', 'Islamabad', 'Rawalpindi'];
-const SOCIETY_OPTIONS = ['All Societies', 'DHA Lahore', 'Bahria Town', 'Lake City', 'Gulberg', 'Capital Smart City', 'Al-Kabir Town', 'Park View City', 'F-11', 'Cantt'];
-const SORT_OPTIONS = ['Newest First', 'Price: Low to High', 'Price: High to Low'];
+const TYPES = ['All Types','House','Apartment','Residential Plot','Farmhouse','Commercial','Office','Penthouse'];
+const PAGE_SIZE = 24;
 
 export default function Properties() {
-  const [params] = useSearchParams();
-  const [view, setView] = useState('grid');
-  const [tab, setTab] = useState(params.get('type') || 'sale');
-  const [filters, setFilters] = useState({
-    city: 'All Cities',
-    society: 'All Societies',
-    propertyType: 'All Types',
-    beds: 'Any',
-    maxPrice: 0,
-    sort: 'Newest First',
+  const [params,setParams] = useSearchParams();
+  const {user,profile} = useAuth();
+  const [view,setView] = useState('grid');
+  const [filters,setFilters] = useState({
+    city: params.get('city') || '',
+    country: params.get('country') || '',
+    countryCode: params.get('country_code') || '',
+    currencyCode: params.get('currency_code') || '',
+    society: params.get('society') || '',
+    propertyType: params.get('property_type') || 'All Types',
+    beds: params.get('beds') || 'Any',
+    minPrice: params.get('min_price') || '',
+    maxPrice: params.get('max_price') || '',
+    sort: 'newest',
     query: params.get('q') || '',
   });
-  const [aiQuery, setAiQuery] = useState(params.get('q') || '');
-  const [properties, setProperties] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tab,setTab] = useState(params.get('type') || 'sale');
+  const [queryText,setQueryText] = useState(params.get('q') || '');
+  const [properties,setProperties] = useState([]);
+  const [offset,setOffset] = useState(0);
+  const [hasMore,setHasMore] = useState(false);
+  const [loading,setLoading] = useState(true);
+  const [loadingMore,setLoadingMore] = useState(false);
+  const [error,setError] = useState('');
+  const [savedMessage,setSavedMessage] = useState('');
+  const [alertEnabled,setAlertEnabled] = useState(false);
+  const [alertFrequency,setAlertFrequency] = useState('daily');
 
-  useEffect(() => {
+  useEffect(()=>{
     setTab(params.get('type') || 'sale');
-  }, [params]);
+    setFilters((current)=>({
+      ...current,
+      city:params.get('city') || current.city,
+      country:params.get('country') || current.country,
+      society:params.get('society') || current.society,
+      query:params.get('q') || current.query,
+    }));
+    setQueryText(params.get('q') || '');
+  },[params]);
 
-  useEffect(() => {
-    setLoading(true);
-    const t = setTimeout(() => {
-      fetchProperties({ ...filters, listingType: tab, maxPrice: filters.maxPrice > 0 ? filters.maxPrice : 0 })
-        .then((data) => setProperties(data))
-        .finally(() => setLoading(false));
-    }, 120);
-    return () => clearTimeout(t);
-  }, [filters, tab]);
+  const filterKey = useMemo(()=>JSON.stringify({...filters,tab}),[filters,tab]);
 
-  const count = useMemo(() => properties.length, [properties]);
+  useEffect(()=>{
+    let active=true;
+    setLoading(true);setError('');setOffset(0);
+    if ((filters.minPrice || filters.maxPrice || filters.sort.startsWith('price_')) && !filters.currencyCode) {
+      setProperties([]);
+      setHasMore(false);
+      setError('Select a three-letter currency before filtering or sorting by price. PropertyX does not compare different currencies as though they were the same.');
+      setLoading(false);
+      return () => { active = false; };
+    }
+    fetchPropertiesPage({
+      ...filters,
+      listingType:tab,
+      city:filters.city || null,
+      country:filters.country || null,
+      countryCode:filters.countryCode || null,
+      currencyCode:filters.currencyCode || null,
+      society:filters.society || null,
+      propertyType:filters.propertyType,
+      minPrice:filters.minPrice || null,
+      maxPrice:filters.maxPrice || null,
+      sort:filters.sort,
+      limit:PAGE_SIZE,
+      offset:0,
+    }).then((page)=>{
+      if(!active)return;
+      setProperties(page.items);setHasMore(page.hasMore);
+    }).catch((err)=>{if(active){setProperties([]);setHasMore(false);setError(err.message || 'Search is unavailable.');}})
+      .finally(()=>{if(active)setLoading(false);});
+    return ()=>{active=false;};
+  },[filterKey]);
+
+  const change=(key,value)=>setFilters((current)=>({...current,[key]:value}));
+
+  const saveSearch=async()=>{
+    if(!user){setSavedMessage('Sign in to save this search.');return;}
+    try{
+      const description=[filters.query,filters.city,filters.country||getCountryName(filters.countryCode)].filter(Boolean).join(' · ');
+      const saved = await createSavedSearch(user.id,description || 'Property search',{...filters,listingType:tab},{alertEnabled,alertFrequency});
+      setSavedMessage(saved.alert_enabled
+        ? `Search saved. In-app ${saved.alert_frequency} alerts are enabled for new approved matches.`
+        : 'Search saved. In-app alerts are currently off; enable them below to receive new matches.');
+    }catch(err){setSavedMessage(err.message || 'Could not save this search.');}
+  };
+
+  const submitSearch=(event)=>{
+    event.preventDefault();
+    change('query',queryText);
+    const next=new URLSearchParams(params);
+    next.set('type',tab);
+    if(queryText.trim())next.set('q',queryText.trim());else next.delete('q');
+    setParams(next,{replace:true});
+  };
+
+  const loadMore=async()=>{
+    setLoadingMore(true);setError('');
+    try{
+      const nextOffset=offset+PAGE_SIZE;
+      const page=await fetchPropertiesPage({...filters,listingType:tab,city:filters.city||null,country:filters.country||null,
+        countryCode:filters.countryCode||null,currencyCode:filters.currencyCode||null,society:filters.society||null,
+        propertyType:filters.propertyType,minPrice:filters.minPrice||null,maxPrice:filters.maxPrice||null,
+        sort:filters.sort,limit:PAGE_SIZE,offset:nextOffset});
+      setProperties((current)=>[...current,...page.items]);setOffset(nextOffset);setHasMore(page.hasMore);
+    }catch(err){setError(err.message || 'Could not load more listings.');}
+    finally{setLoadingMore(false);}
+  };
 
   return (
-    <div>
-      <div className="container">
-        <div className="page-head">
-          <h1>Buy Property</h1>
-          <div className="sub">{loading ? 'Loading…' : `${count} properties found`}</div>
-        </div>
+    <div className="container page-section">
+      <div className="page-head"><h1>Property marketplace</h1><p className="sub">Search approved, active listings from every country and city represented in PropertyX.</p></div>
+      <div className="tabs" style={{marginBottom:20}}>
+        {['sale','rent','lease'].map((type)=><button key={type} className={`tab ${tab===type?'active':''}`} onClick={()=>setTab(type)}>{type==='sale'?'Buy':type==='rent'?'Rent':'Lease'}</button>)}
+      </div>
+      <form className="ai-search-bar" onSubmit={submitSearch}>
+        <Search size={16}/>
+        <input value={queryText} maxLength={100} onChange={(e)=>setQueryText(e.target.value)} placeholder="Search title, district, society or city…"/>
+        <button className="btn btn-primary btn-sm" type="submit">Search</button>
+        <button className="btn btn-outline btn-sm" type="button" onClick={saveSearch}><BookmarkPlus size={14}/> Save search</button>
+      </form>
+      {savedMessage && <div className="notice" role="status">{savedMessage}</div>}
+      <div className="saved-search-alert-settings">
+        <label className="checkbox-label">
+          <input type="checkbox" checked={alertEnabled} onChange={(event)=>setAlertEnabled(event.target.checked)}/>
+          Enable in-app alerts when new approved listings match this search
+        </label>
+        {alertEnabled && (
+          <label className="form-field">
+            <span>Alert frequency</span>
+            <select className="input" value={alertFrequency} onChange={(event)=>setAlertFrequency(event.target.value)}>
+              <option value="instant">As soon as a listing is approved</option>
+              <option value="daily">Daily digest</option>
+              <option value="weekly">Weekly digest</option>
+            </select>
+          </label>
+        )}
+        <p className="sub">Alerts appear in your PropertyX notifications. Email delivery is separate and is not enabled by this setting.</p>
+      </div>
 
-        <div className="tabs" style={{ marginBottom: 20 }}>
-          {['sale', 'rent', 'lease'].map((t) => (
-            <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {t === 'sale' ? 'Buy' : t === 'rent' ? 'Rent' : 'Lease'}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-          <div className="view-toggle">
-            <button className={view === 'grid' ? 'active' : ''} onClick={() => setView('grid')}><Grid3X3 size={14} /> Grid</button>
-            <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}><List size={14} /> List</button>
-            <button className={view === 'map' ? 'active' : ''} onClick={() => setView('map')}><MapIcon size={14} /> Map</button>
+      <div className="filters-layout">
+        <aside className="filter-sidebar">
+          <h4><SlidersHorizontal size={14}/> Refine results</h4>
+          <label className="form-field"><span>Country</span><select className="input" value={filters.countryCode} onChange={(event)=>{
+            const code=event.target.value;
+            setFilters((current)=>({...current,countryCode:code,country:''}));
+          }}><option value="">All countries</option>{COUNTRY_OPTIONS.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label className="form-field"><span>City</span><input className="input" value={filters.city} onChange={(e)=>change('city',e.target.value)} placeholder="Any city"/></label>
+          <label className="form-field"><span>Listing currency</span><select className="input" value={filters.currencyCode} onChange={(e)=>change('currencyCode',e.target.value)}><option value="">All currencies</option>{CURRENCY_CODES.map((code)=><option key={code} value={code}>{code}</option>)}</select></label>
+          <label className="form-field"><span>District / society</span><input className="input" value={filters.society} onChange={(e)=>change('society',e.target.value)} placeholder="Any society"/></label>
+          <label className="form-field"><span>Property type</span><select className="input" value={filters.propertyType} onChange={(e)=>change('propertyType',e.target.value)}>{TYPES.map((type)=><option key={type}>{type}</option>)}</select></label>
+          <label className="form-field"><span>Bedrooms</span><select className="input" value={filters.beds} onChange={(e)=>change('beds',e.target.value)}>{['Any','1','2','3','4','5','6','7'].map((value)=><option key={value} value={value}>{value==='Any'?'Any':`${value}+`}</option>)}</select></label>
+          <div className="form-grid two">
+            <label className="form-field"><span>Min price</span><input className="input" type="number" min="0" value={filters.minPrice} onChange={(e)=>change('minPrice',e.target.value)} /></label>
+            <label className="form-field"><span>Max price</span><input className="input" type="number" min="0" value={filters.maxPrice} onChange={(e)=>change('maxPrice',e.target.value)} /></label>
           </div>
-          <div className="view-toggle">
-            <button>+ List</button>
-            <button>Full Map</button>
-            <button>Compare</button>
+          <label className="form-field"><span>Sort</span><select className="input" value={filters.sort} onChange={(e)=>change('sort',e.target.value)}><option value="newest">Newest</option><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option></select></label>
+          <button className="btn btn-outline btn-sm" type="button" onClick={()=>setFilters({city:'',country:'',countryCode:'',currencyCode:'',society:'',propertyType:'All Types',beds:'Any',minPrice:'',maxPrice:'',sort:'newest',query:''})}>Reset filters</button>
+        </aside>
+        <main>
+          <div className="section-head-row">
+            <div><b>{loading?'Searching…':`${properties.length}${hasMore?'+':''} listings loaded`}</b><p className="sub">Only moderated, non-archived listings are returned.</p></div>
+            <div className="view-toggle"><button className={view==='grid'?'active':''} onClick={()=>setView('grid')}><Grid3X3 size={14}/> Grid</button><button className={view==='list'?'active':''} onClick={()=>setView('list')}><List size={14}/> List</button><button className="active" onClick={()=>window.location.assign('/map-search')}><MapIcon size={14}/> Map</button></div>
           </div>
-        </div>
-
-        <form
-          className="ai-search-bar"
-          onSubmit={(e) => { e.preventDefault(); setFilters((f) => ({ ...f, query: aiQuery })); }}
-        >
-          <Sparkles size={16} />
-          <input
-            placeholder="Try: '3 bed house in Bahria Town under 2 crore with a garden'"
-            value={aiQuery}
-            onChange={(e) => setAiQuery(e.target.value)}
-          />
-          <Mic size={16} />
-          <button type="submit" className="btn btn-primary btn-sm">Search</button>
-        </form>
-
-        <div className="filters-layout">
-          <aside className="filter-sidebar">
-            <h4><SlidersHorizontal size={14} style={{ verticalAlign: -2 }} /> Filters</h4>
-            <div className="filter-group">
-              <input
-                className="input"
-                placeholder="Search…"
-                value={filters.query}
-                onChange={(e) => setFilters((f) => ({ ...f, query: e.target.value }))}
-              />
-            </div>
-            <div className="filter-group">
-              <select
-                className="select"
-                value={filters.city}
-                onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
-              >
-                {CITY_OPTIONS.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="filter-group">
-              <select
-                className="select"
-                value={filters.propertyType}
-                onChange={(e) => setFilters((f) => ({ ...f, propertyType: e.target.value }))}
-              >
-                {TYPE_OPTIONS.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="filter-group">
-              <select
-                className="select"
-                value={filters.society}
-                onChange={(e) => setFilters((f) => ({ ...f, society: e.target.value }))}
-              >
-                {SOCIETY_OPTIONS.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="filter-group">
-              <select
-                className="select"
-                value={filters.beds}
-                onChange={(e) => setFilters((f) => ({ ...f, beds: e.target.value }))}
-              >
-                {['Any', '1', '2', '3', '4', '5', '6'].map((b) => <option key={b} value={b}>{b === 'Any' ? 'Any' : `${b}+ Bedrooms`}</option>)}
-              </select>
-            </div>
-            <div className="filter-group">
-              <div className="range-labels">
-                <span>Contact for Price</span>
-                <span>PKR {filters.maxPrice === 0 ? '50.00 Crore' : `${(filters.maxPrice / 10000000).toFixed(2)} Crore`}</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="500000000"
-                step="1000000"
-                value={filters.maxPrice}
-                onChange={(e) => setFilters((f) => ({ ...f, maxPrice: Number(e.target.value) }))}
-              />
-            </div>
-            <div className="filter-group">
-              <select
-                className="select"
-                value={filters.sort}
-                onChange={(e) => setFilters((f) => ({ ...f, sort: e.target.value }))}
-              >
-                {SORT_OPTIONS.map((s) => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-          </aside>
-
-          <main>
-            <div className="results-head">
-              <span className="results-count">{count} matches</span>
-            </div>
-            <div className={`prop-grid ${view === 'grid' ? 'cols-3' : ''} ${view === 'list' ? 'list-view' : ''}`}>
-              {properties.map((p) => (
-                <PropertyCard key={p.id} property={p} showMatch showActions />
-              ))}
-            </div>
-            {!loading && properties.length === 0 && (
-              <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: 48 }}>
-                No properties match your filters. Try widening the search.
-              </p>
-            )}
-          </main>
-        </div>
+          {error && <div className="form-error" role="alert">{error}</div>}
+          {!loading && !error && properties.length===0 && <div className="empty-state"><Search size={30}/><h2>No approved listings found</h2><p>Broaden your filters or check again when new listings have passed moderation.</p></div>}
+          <div className={`prop-grid ${view==='grid'?'cols-3':''} ${view==='list'?'list-view':''}`}>
+            {properties.map((property)=><PropertyCard key={property.id} property={property} showActions/>)}
+          </div>
+          {hasMore && <div className="load-more"><button className="btn btn-outline" type="button" onClick={loadMore} disabled={loadingMore}>{loadingMore?'Loading…':'Load more listings'}</button></div>}
+        </main>
       </div>
     </div>
   );
