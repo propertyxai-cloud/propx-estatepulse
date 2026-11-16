@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { BookmarkPlus, Grid3X3, List, Map as MapIcon, Search, SlidersHorizontal } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
 import { createSavedSearch, fetchPropertiesPage } from '../lib/data';
+import { COUNTRY_OPTIONS,CURRENCY_CODES,getCountryName } from '../lib/localeData';
 import { useAuth } from '../context/AuthContext';
 
 const TYPES = ['All Types','House','Apartment','Residential Plot','Farmhouse','Commercial','Office','Penthouse'];
@@ -152,10 +153,12 @@ export default function Properties() {
       <div className="filters-layout">
         <aside className="filter-sidebar">
           <h4><SlidersHorizontal size={14}/> Refine results</h4>
-          <label className="form-field"><span>Country name</span><input className="input" value={filters.country} onChange={(e)=>change('country',e.target.value)} placeholder="Any country"/></label>
-          <label className="form-field"><span>Country code (ISO 3166-1 alpha-2)</span><input className="input" maxLength={2} value={filters.countryCode} onChange={(e)=>change('countryCode',e.target.value.toUpperCase())} placeholder="e.g. PK, AE"/></label>
+          <label className="form-field"><span>Country</span><select className="input" value={filters.countryCode} onChange={(event)=>{
+            const code=event.target.value;
+            setFilters((current)=>({...current,countryCode:code,country:code?getCountryName(code):''}));
+          }}><option value="">All countries</option>{COUNTRY_OPTIONS.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label className="form-field"><span>City</span><input className="input" value={filters.city} onChange={(e)=>change('city',e.target.value)} placeholder="Any city"/></label>
-          <label className="form-field"><span>Currency (ISO 4217)</span><input className="input" maxLength={3} value={filters.currencyCode} onChange={(e)=>change('currencyCode',e.target.value.toUpperCase())} placeholder="e.g. PKR, AED"/></label>
+          <label className="form-field"><span>Listing currency</span><select className="input" value={filters.currencyCode} onChange={(e)=>change('currencyCode',e.target.value)}><option value="">All currencies</option>{CURRENCY_CODES.map((code)=><option key={code} value={code}>{code}</option>)}</select></label>
           <label className="form-field"><span>District / society</span><input className="input" value={filters.society} onChange={(e)=>change('society',e.target.value)} placeholder="Any society"/></label>
           <label className="form-field"><span>Property type</span><select className="input" value={filters.propertyType} onChange={(e)=>change('propertyType',e.target.value)}>{TYPES.map((type)=><option key={type}>{type}</option>)}</select></label>
           <label className="form-field"><span>Bedrooms</span><select className="input" value={filters.beds} onChange={(e)=>change('beds',e.target.value)}>{['Any','1','2','3','4','5','6','7'].map((value)=><option key={value} value={value}>{value==='Any'?'Any':`${value}+`}</option>)}</select></label>

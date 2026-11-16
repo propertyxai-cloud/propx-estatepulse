@@ -97,7 +97,7 @@ export default function MapSearch(){
     <div className="container page-section">
       <div className="section-head-row"><div><h1><MapPin size={22}/> Map search</h1><p className="sub">Explore only approved active listings with published coordinates.</p></div><button className="btn btn-outline btn-sm" onClick={locate}><LocateFixed size={14}/> My location</button></div>
       <div className="map-filters">
-        <label className="form-field"><span>Country code</span><input className="input" value={countryCode} maxLength={2} onChange={(e)=>setCountryCode(e.target.value.toUpperCase())} placeholder="e.g. PK"/></label>
+        <label className="form-field"><span>Country</span><select className="input" value={countryCode} onChange={(e)=>setCountryCode(e.target.value)}><option value="">All countries</option>{COUNTRY_OPTIONS.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <label className="form-field"><span>City</span><input className="input" value={city} onChange={(e)=>setCity(e.target.value)} placeholder="Any city"/></label>
         <label className="form-field"><span>Property type</span><select className="input" value={propertyType} onChange={(e)=>setPropertyType(e.target.value)}><option value="">Any type</option>{['House','Apartment','Residential Plot','Farmhouse','Commercial','Office','Penthouse'].map((item)=><option key={item}>{item}</option>)}</select></label>
         <label className="form-field"><span>Radius: {radius} km</span><input type="range" min="2" max="100" value={radius} onChange={(e)=>setRadius(Number(e.target.value))}/></label>

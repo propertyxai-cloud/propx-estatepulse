@@ -2,6 +2,7 @@ import { useEffect,useState } from 'react';
 import { Info,TrendingUp,Globe2 } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
 import { fetchProperties,formatCurrency } from '../lib/data';
+import { COUNTRY_OPTIONS,CURRENCY_CODES } from '../lib/localeData';
 
 export default function Investor(){
   const [filters,setFilters]=useState({
@@ -57,9 +58,9 @@ export default function Investor(){
       <p className="sub" style={{marginTop:8}}>Find approved live properties with seller-supplied estimates. Price filters always use the selected listing currency; no automatic currency conversions or projected returns are invented.</p>
       <div className="notice"><Info size={16}/> Estimated ROI and rental yield are supplied with individual listings and may be incomplete or unverified. They are not independently confirmed performance, guaranteed income, or financial advice.</div>
       <div className="investor-filters">
-        <label className="form-field"><span><Globe2 size={13}/> Country code</span><input className="input" maxLength={2} value={filters.countryCode} onChange={(e)=>change('countryCode',e.target.value.toUpperCase())} placeholder="ISO-2, e.g. PK"/></label>
+        <label className="form-field"><span><Globe2 size={13}/> Country</span><select className="input" value={filters.countryCode} onChange={(e)=>change('countryCode',e.target.value)}><option value="">All countries</option>{COUNTRY_OPTIONS.map((option)=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <label className="form-field"><span>City</span><input className="input" value={filters.city} onChange={(e)=>change('city',e.target.value)} placeholder="Any city"/></label>
-        <label className="form-field"><span>Currency</span><input className="input" maxLength={3} value={filters.currencyCode} onChange={(e)=>change('currencyCode',e.target.value.toUpperCase())} placeholder="ISO-4217, e.g. PKR"/></label>
+        <label className="form-field"><span>Listing currency</span><select className="input" value={filters.currencyCode} onChange={(e)=>change('currencyCode',e.target.value)}><option value="">All currencies</option>{CURRENCY_CODES.map((code)=><option key={code} value={code}>{code}</option>)}</select></label>
         <label className="form-field"><span>Property type</span><select className="input" value={filters.propertyType} onChange={(e)=>change('propertyType',e.target.value)}><option value="">Any type</option>{['House','Apartment','Residential Plot','Farmhouse','Commercial','Office','Penthouse'].map((type)=><option key={type}>{type}</option>)}</select></label>
         <label className="form-field"><span>Minimum stated ROI (%)</span><input className="input" type="number" min="0" max="100" step="0.1" value={filters.minRoi} onChange={(e)=>change('minRoi',e.target.value)} placeholder="No minimum"/></label>
         <label className="form-field"><span>Minimum stated yield (%)</span><input className="input" type="number" min="0" max="100" step="0.1" value={filters.minYield} onChange={(e)=>change('minYield',e.target.value)} placeholder="No minimum"/></label>
