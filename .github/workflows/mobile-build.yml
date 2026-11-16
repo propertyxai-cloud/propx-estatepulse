@@ -1,0 +1,108 @@
+name: PropertyX native mobile builds
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.ts'
+      - '.github/workflows/mobile-build.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.ts'
+      - '.github/workflows/mobile-build.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: propertyx-mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-internal:
+    name: Android unsigned internal build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build web assets
+        run: npm run build
+      - name: Generate Android project
+        run: npx cap add android
+      - name: Sync Capacitor project
+        run: npx cap sync android
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android API 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Build unsigned debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: propertyx-android-debug-unsigned
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  ios-simulator:
+    name: iOS unsigned simulator build
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build web assets
+        run: npm run build
+      - name: Generate iOS project using Swift Package Manager
+        run: npx cap add ios
+      - name: Sync Capacitor project
+        run: npx cap sync ios
+      - name: Locate Xcode project
+        id: project
+        run: echo "path=$(find ios -maxdepth 4 -name 'App.xcodeproj' -print -quit)" >> "$GITHUB_OUTPUT"
+      - name: Build unsigned iOS Simulator app
+        run: xcodebuild -project "${{ steps.project.outputs.path }}" -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+      - name: Archive simulator app
+        run: |
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -path '*/Build/Products/Debug-iphonesimulator/App.app' -print -quit)
+          test -n "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" PropertyX-iOS-Simulator.app.zip
+      - name: Upload iOS simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: propertyx-ios-simulator-unsigned
+          path: PropertyX-iOS-Simulator.app.zip
+          if-no-files-found: error
+          retention-days: 14
