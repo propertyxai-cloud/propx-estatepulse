@@ -52,6 +52,13 @@ export default function Properties() {
   useEffect(()=>{
     let active=true;
     setLoading(true);setError('');setOffset(0);
+    if ((filters.minPrice || filters.maxPrice || filters.sort.startsWith('price_')) && !filters.currencyCode) {
+      setProperties([]);
+      setHasMore(false);
+      setError('Select a three-letter currency before filtering or sorting by price. PropertyX does not compare different currencies as though they were the same.');
+      setLoading(false);
+      return () => { active = false; };
+    }
     fetchPropertiesPage({
       ...filters,
       listingType:tab,

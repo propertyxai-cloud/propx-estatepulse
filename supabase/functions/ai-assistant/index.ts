@@ -829,7 +829,9 @@ const HANDLERS: Record<string, (payload: Json) => Promise<Json>> = {
 
     const text = await runAi(
       `${BASE_RULES} Convert the request into marketplace filters. Use null for any ` +
-        `filter the request does not imply, and never guess a location or a price.`,
+        `filter the request does not imply. Never guess a location, price, or currency. ` +
+        `Return currencyCode only when an ISO 4217 code is explicit or safely inferred from a named country/city. ` +
+        `If a budget is stated but its currency is unclear, return minPrice and maxPrice as null and explain that the user must specify currency.`,
       `Request: ${query}`,
       {
         type: "object",
@@ -843,6 +845,9 @@ const HANDLERS: Record<string, (payload: Json) => Promise<Json>> = {
               beds: { type: "number", nullable: true },
               baths: { type: "number", nullable: true },
               city: { type: "string", nullable: true },
+              country: { type: "string", nullable: true },
+              currencyCode: { type: "string", nullable: true },
+              propertyType: { type: "string", nullable: true },
               q: { type: "string", nullable: true },
             },
           },

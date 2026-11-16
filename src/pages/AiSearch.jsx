@@ -11,23 +11,65 @@ const SUGGESTIONS = [
   'Find properties with a published rental yield',
 ];
 
+function resolveCurrencyCode(query, city) {
+  const upper = query.toUpperCase();
+  const explicit = upper.match(/\b(PKR|AED|SAR|QAR|KWD|BHD|OMR|USD|CAD|AUD|NZD|GBP|EUR|INR|SGD|JPY|CNY|TRY|CHF)\b/);
+  if (explicit) return explicit[1];
+
+  const lower = query.toLowerCase();
+  if (/\b(pkr|pakistani rupees?|pakistan rupees?)\b/.test(lower)) return 'PKR';
+  if (/\b(aed|dirhams?|uae dirhams?)\b/.test(lower)) return 'AED';
+  if (/\b(sar|saudi riyals?|riyals?)\b/.test(lower)) return 'SAR';
+  if (/\b(usd|us dollars?|dollars?)\b/.test(lower)) return 'USD';
+  if (/\b(gbp|pounds?|sterling)\b/.test(lower)) return 'GBP';
+  if (/\b(eur|euros?)\b/.test(lower)) return 'EUR';
+  if (/\b(inr|indian rupees?)\b/.test(lower)) return 'INR';
+  if (/\b(sgd|singapore dollars?)\b/.test(lower)) return 'SGD';
+  if (/\b(jpy|yen)\b/.test(lower)) return 'JPY';
+  if (/\b(cad|canadian dollars?)\b/.test(lower)) return 'CAD';
+  if (/\b(aud|australian dollars?)\b/.test(lower)) return 'AUD';
+
+  const cityCurrency = {
+    lahore:'PKR', islamabad:'PKR', rawalpindi:'PKR', karachi:'PKR', multan:'PKR',
+    dubai:'AED', 'abu dhabi':'AED', london:'GBP', singapore:'SGD',
+    'new york':'USD', toronto:'CAD', sydney:'AUD', mumbai:'INR', delhi:'INR',
+  };
+  return cityCurrency[city] || null;
+}
+
 function parseLocalFallback(query) {
   const lower = query.toLowerCase();
   const filters = { query };
-  const city = ['lahore','islamabad','rawalpindi','karachi','multan','dubai','london','singapore','new york']
-    .find((value) => lower.includes(value));
-  if (city) filters.city = city.replace(/w/g,(letter)=>letter.toUpperCase());
-  if (lower.includes('rent')) filters.listingType = 'rent';
-  else if (lower.includes('lease')) filters.listingType = 'lease';
-  else if (/(buy|sale|purchase)/.test(lower)) filters.listingType = 'sale';
-  const beds = query.match(/(d+)s*(?:bed|bedroom)/i);
-  if (beds) filters.beds = beds[1];
-  const money = query.match(/(?:under|below|max(?:imum)?)s*([d,.]+)s*(crore|crores|cr|lakh|lac|lakhs|lacs|million|m|k)?/i);
-  if (money) {
-    const amount = Number(money[1].replace(/,/g,''));
-    const unit = (money[2] || '').toLowerCase();
-    filters.maxPrice = amount * (['crore','crores','cr'].includes(unit) ? 10000000 : ['lakh','lac','lakhs','lacs'].includes(unit) ? 100000 : ['million','m'].includes(unit) ? 1000000 : unit === 'k' ? 1000 : 1);
+  const cities = ['new york','abu dhabi','lahore','islamabad','rawalpindi','karachi','multan','dubai','london','singapore','mumbai','delhi','toronto','sydney'];
+  const city = cities.find((value) => lower.includes(value));
+  if (city) {
+    filters.city = city.replace(/\b\w/g, (letter) => letter.toUpperCase());
+    filters.currencyCode = resolveCurrencyCode(query, city);
+  } else {
+    filters.currencyCode = resolveCurrencyCode(query, null);
   }
+
+  if (/\b(rent|rental|lease)\b/.test(lower)) filters.listingType = lower.includes('lease') ? 'lease' : 'rent';
+  else if (/\b(buy|sale|purchase)\b/.test(lower)) filters.listingType = 'sale';
+
+  const beds = query.match(/(\d+)\s*(?:bed|bedroom)/i);
+  if (beds) filters.beds = Number(beds[1]);
+
+  const money = query.match(/(?:under|below|max(?:imum)?|budget(?:\s+of)?)\s*([\d,.]+)\s*(crore|crores|cr|lakh|lac|lakhs|lacs|million|m|k)?/i);
+  if (money) {
+    const amount = Number(money[1].replace(/,/g, ''));
+    const unit = (money[2] || '').toLowerCase();
+    const multiplier = ['crore','crores','cr'].includes(unit) ? 10000000
+      : ['lakh','lac','lakhs','lacs'].includes(unit) ? 100000
+      : ['million','m'].includes(unit) ? 1000000
+      : unit === 'k' ? 1000 : 1;
+    if (Number.isFinite(amount) && amount > 0 && filters.currencyCode) {
+      filters.maxPrice = amount * multiplier;
+    } else if (Number.isFinite(amount) && amount > 0) {
+      filters.priceNeedsCurrency = true;
+    }
+  }
+
   if (lower.includes('plot')) filters.propertyType = 'Residential Plot';
   else if (lower.includes('apartment') || lower.includes('flat')) filters.propertyType = 'Apartment';
   else if (lower.includes('farmhouse')) filters.propertyType = 'Farmhouse';
@@ -66,22 +108,38 @@ export default function AiSearch() {
         if (error) throw error;
         const result = data?.result || {};
         const aiFilters = result.filters || {};
+        const currencyCandidate = String(aiFilters.currencyCode || aiFilters.currency_code || '').toUpperCase();
+        const currencyCode = /^[A-Z]{3}$/.test(currencyCandidate) ? currencyCandidate : null;
+        const hasBudget = aiFilters.minPrice != null || aiFilters.maxPrice != null;
         filters = {
           query: aiFilters.q || query,
           city: aiFilters.city || null,
+          country: aiFilters.country || null,
+          currencyCode,
           listingType: ['sale','rent','lease'].includes(String(aiFilters.type).toLowerCase()) ? String(aiFilters.type).toLowerCase() : null,
-          minPrice: aiFilters.minPrice ?? null,
-          maxPrice: aiFilters.maxPrice ?? null,
+          minPrice: currencyCode ? (aiFilters.minPrice ?? null) : null,
+          maxPrice: currencyCode ? (aiFilters.maxPrice ?? null) : null,
           beds: aiFilters.beds ?? null,
           baths: aiFilters.baths ?? null,
           propertyType: aiFilters.propertyType ?? null,
         };
+        if (hasBudget && !currencyCode) {
+          setNotice('I found a budget but could not establish its currency. I searched without a price filter to avoid comparing different currencies.');
+        }
         explanation = result.explanation || '';
       } catch (aiError) {
         filters = parseLocalFallback(query);
-        setNotice(`AI interpretation is temporarily unavailable; I searched using basic filters instead. ${aiError.message || ''}`);
+        const budgetNotice = filters.priceNeedsCurrency
+          ? ' Your budget needs a currency code or an unambiguous city; I did not apply a mixed-currency price filter.'
+          : '';
+        setNotice(`AI interpretation is temporarily unavailable; I searched using basic filters instead. ${aiError.message || ''}${budgetNotice}`);
       }
 
+    if ((filters.minPrice != null || filters.maxPrice != null) && !filters.currencyCode) {
+      filters.minPrice = null;
+      filters.maxPrice = null;
+      setNotice('I could not establish the budget currency. I searched without a price filter to avoid comparing different currencies.');
+    }
       const results = await fetchProperties(filters);
       let response = explanation || `Found ${results.length} approved live listing(s) matching your search.`;
       if (!results.length) response += ' There are no approved live listings for those filters yet. Try broadening your search or change city/country.';

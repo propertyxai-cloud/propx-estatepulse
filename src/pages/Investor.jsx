@@ -27,6 +27,12 @@ export default function Investor(){
       propertyType:filters.propertyType||undefined,
       limit:60,
     };
+    if ((query.minPrice !== undefined || query.maxPrice !== undefined) && !filters.currencyCode) {
+      setError('Choose a currency before entering an asking-price range. Currency conversion is not applied automatically.');
+      setProperties([]);
+      setLoading(false);
+      return () => { active = false; };
+    }
     if(query.minPrice!==undefined&&query.maxPrice!==undefined&&query.minPrice>query.maxPrice){
       setError('Minimum price cannot be greater than maximum price.');
       setProperties([]);setLoading(false);return()=>{active=false;};
