@@ -399,12 +399,20 @@ export async function fetchNotifications(userId) {
   return data ?? [];
 }
 
-export async function createSavedSearch(userId, query, filters = {}) {
+export async function createSavedSearch(userId, query, filters = {}, preferences = {}) {
   if (!userId) throw new Error('Sign in to save a search.');
+  const frequency = ['instant','daily','weekly'].includes(preferences.alertFrequency)
+    ? preferences.alertFrequency : 'daily';
   const { data, error } = await requireSupabase()
     .from('saved_searches')
-    .insert({ user_id: userId, query: String(query || '').slice(0, 500), filters })
-    .select('id')
+    .insert({
+      user_id: userId,
+      query: String(query || '').slice(0, 500),
+      filters,
+      alert_enabled: preferences.alertEnabled === true,
+      alert_frequency: frequency,
+    })
+    .select('id,alert_enabled,alert_frequency')
     .single();
   if (error) throw error;
   return data;

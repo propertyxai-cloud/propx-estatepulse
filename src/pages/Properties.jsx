@@ -34,6 +34,8 @@ export default function Properties() {
   const [loadingMore,setLoadingMore] = useState(false);
   const [error,setError] = useState('');
   const [savedMessage,setSavedMessage] = useState('');
+  const [alertEnabled,setAlertEnabled] = useState(false);
+  const [alertFrequency,setAlertFrequency] = useState('daily');
 
   useEffect(()=>{
     setTab(params.get('type') || 'sale');
@@ -87,8 +89,10 @@ export default function Properties() {
     if(!user){setSavedMessage('Sign in to save this search.');return;}
     try{
       const description=[filters.query,filters.city,filters.country].filter(Boolean).join(' · ');
-      await createSavedSearch(user.id,description || 'Property search',{...filters,listingType:tab});
-      setSavedMessage('Search saved to your account. Alerts depend on the notification service being configured.');
+      const saved = await createSavedSearch(user.id,description || 'Property search',{...filters,listingType:tab},{alertEnabled,alertFrequency});
+      setSavedMessage(saved.alert_enabled
+        ? `Search saved. In-app ${saved.alert_frequency} alerts are enabled for new approved matches.`
+        : 'Search saved. In-app alerts are currently off; enable them below to receive new matches.');
     }catch(err){setSavedMessage(err.message || 'Could not save this search.');}
   };
 
@@ -127,6 +131,24 @@ export default function Properties() {
         <button className="btn btn-outline btn-sm" type="button" onClick={saveSearch}><BookmarkPlus size={14}/> Save search</button>
       </form>
       {savedMessage && <div className="notice" role="status">{savedMessage}</div>}
+      <div className="saved-search-alert-settings">
+        <label className="checkbox-label">
+          <input type="checkbox" checked={alertEnabled} onChange={(event)=>setAlertEnabled(event.target.checked)}/>
+          Enable in-app alerts when new approved listings match this search
+        </label>
+        {alertEnabled && (
+          <label className="form-field">
+            <span>Alert frequency</span>
+            <select className="input" value={alertFrequency} onChange={(event)=>setAlertFrequency(event.target.value)}>
+              <option value="instant">As soon as a listing is approved</option>
+              <option value="daily">Daily digest</option>
+              <option value="weekly">Weekly digest</option>
+            </select>
+          </label>
+        )}
+        <p className="sub">Alerts appear in your PropertyX notifications. Email delivery is separate and is not enabled by this setting.</p>
+      </div>
+
       <div className="filters-layout">
         <aside className="filter-sidebar">
           <h4><SlidersHorizontal size={14}/> Refine results</h4>

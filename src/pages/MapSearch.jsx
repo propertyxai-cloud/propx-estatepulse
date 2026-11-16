@@ -25,6 +25,8 @@ export default function MapSearch(){
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
+  const [alertsEnabled,setAlertsEnabled]=useState(false);
+  const [alertFrequency,setAlertFrequency]=useState('daily');
   const mapEl=useRef(null),mapRef=useRef(null),markersRef=useRef([]),radiusRef=useRef(null),centerRef=useRef(null);
 
   useEffect(()=>{
@@ -86,8 +88,8 @@ export default function MapSearch(){
   const saveSearch=async()=>{
     if(!user){setNotice('Sign in to save this map search.');return;}
     try{
-      await createSavedSearch(user.id,'Map search',{city,country_code:countryCode,property_type:propertyType,radius_km:radius,center});
-      setNotice('Map search saved. Automated push/email alerts are not enabled by this action.');
+      const saved=await createSavedSearch(user.id,'Map search',{city,country_code:countryCode,property_type:propertyType,radius_km:radius,center},{alertEnabled:alertsEnabled,alertFrequency});
+      setNotice(saved.alert_enabled?`Map search saved. In-app ${saved.alert_frequency} alerts are enabled.`:'Map search saved. Alerts are off.');
     }catch(err){setError(err.message||'Could not save search.');}
   };
 
@@ -99,6 +101,8 @@ export default function MapSearch(){
         <label className="form-field"><span>City</span><input className="input" value={city} onChange={(e)=>setCity(e.target.value)} placeholder="Any city"/></label>
         <label className="form-field"><span>Property type</span><select className="input" value={propertyType} onChange={(e)=>setPropertyType(e.target.value)}><option value="">Any type</option>{['House','Apartment','Residential Plot','Farmhouse','Commercial','Office','Penthouse'].map((item)=><option key={item}>{item}</option>)}</select></label>
         <label className="form-field"><span>Radius: {radius} km</span><input type="range" min="2" max="100" value={radius} onChange={(e)=>setRadius(Number(e.target.value))}/></label>
+        <label className="checkbox-label"><input type="checkbox" checked={alertsEnabled} onChange={(e)=>setAlertsEnabled(e.target.checked)}/> In-app alerts</label>
+        {alertsEnabled&&<select className="input compact-select" value={alertFrequency} onChange={(e)=>setAlertFrequency(e.target.value)}><option value="instant">Instant</option><option value="daily">Daily</option><option value="weekly">Weekly</option></select>}
         <button className="btn btn-outline btn-sm" onClick={saveSearch}><BookmarkPlus size={14}/> Save search</button>
       </div>
       {notice&&<div className="notice" role="status">{notice}</div>}
