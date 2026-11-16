@@ -92,7 +92,7 @@ jobs:
       - name: Build web assets
         run: npm run build
       - name: Generate iOS project using Swift Package Manager
-        run: npx cap add ios --packagemanager SPM
+        run: npx cap add ios
       - name: Register native OAuth deep link
         run: node scripts/configure-capacitor-deeplinks.mjs ios
       - name: Sync Capacitor project
