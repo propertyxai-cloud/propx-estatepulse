@@ -13,6 +13,7 @@ import BrokerRatings from './pages/BrokerRatings';
 import Societies from './pages/Societies';
 import Login from './pages/Login';
 import AgentPortal from './pages/AgentPortal';
+import CeoCommandCenter from './pages/CeoCommandCenter';
 import Stub from './pages/Stub';
 import NotFound from './pages/NotFound';
 
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/societies" element={<Societies />} />
           <Route path="/login" element={<Login />} />
           <Route path="/agent-portal" element={<AgentPortal />} />
+          <Route path="/ceo" element={<CeoCommandCenter />} />
           <Route path="/rentals" element={<Stub page="rentals" />} />
           <Route path="/portfolio" element={<Stub page="portfolio" />} />
           <Route path="/roi-battle" element={<Stub page="roi-battle" />} />
