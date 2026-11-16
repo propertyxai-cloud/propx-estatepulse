@@ -39,14 +39,35 @@ export function AuthProvider({ children }) {
     let alive = true;
     let listener;
 
-    CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+    const handleNativeAuthUrl = async (url) => {
       if (!alive || typeof url !== 'string' || !url.startsWith(NATIVE_AUTH_CALLBACK)) return;
       try {
         const callbackUrl = new URL(url);
-        const { error } = await supabase.auth.exchangeCodeForSession(url);
-        if (error) throw error;
+        const fragment = new URLSearchParams(callbackUrl.hash.replace(/^#/, ''));
+        const type = callbackUrl.searchParams.get('type') || fragment.get('type');
+        let result;
 
-        if (callbackUrl.searchParams.get('type') === 'recovery') {
+        const accessToken = callbackUrl.searchParams.get('access_token') || fragment.get('access_token');
+        const refreshToken = callbackUrl.searchParams.get('refresh_token') || fragment.get('refresh_token');
+        const tokenHash = callbackUrl.searchParams.get('token_hash') || fragment.get('token_hash');
+
+        if (callbackUrl.searchParams.has('code') || fragment.has('code')) {
+          result = await supabase.auth.exchangeCodeForSession(url);
+        } else if (tokenHash && type) {
+          result = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+        } else if (accessToken && refreshToken) {
+          result = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+        } else {
+          throw new Error('The authentication callback did not include a recognised one-time code or session token.');
+        }
+
+        if (result?.error) throw result.error;
+        await Browser.close().catch(() => undefined);
+
+        if (type === 'recovery') {
           window.location.replace('/login?recovery=1');
         } else {
           window.location.replace('/agent-portal');
@@ -54,12 +75,20 @@ export function AuthProvider({ children }) {
       } catch (error) {
         console.error('PropertyX native authentication callback failed:', error);
       }
+    };
+
+    CapacitorApp.addListener('appUrlOpen', ({ url }) => {
+      void handleNativeAuthUrl(url);
     }).then((value) => {
       if (alive) listener = value;
       else value.remove();
     }).catch((error) => {
       console.error('Could not register PropertyX native auth callback:', error);
     });
+
+    CapacitorApp.getLaunchUrl()
+      .then((launch) => handleNativeAuthUrl(launch?.url))
+      .catch((error) => console.warn('Could not read initial PropertyX auth link:', error));
 
     return () => {
       alive = false;

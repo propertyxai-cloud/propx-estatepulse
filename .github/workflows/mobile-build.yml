@@ -10,6 +10,8 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'capacitor.config.ts'
+      - 'scripts/**'
+      - 'mobile/**'
       - '.github/workflows/mobile-build.yml'
   push:
     branches: [main]
@@ -41,6 +43,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Regenerate lockfile from pinned package manifest
+        run: npm install --package-lock-only --ignore-scripts --no-audit
       - name: Install dependencies
         run: npm ci
       - name: Build web assets
@@ -88,7 +92,7 @@ jobs:
       - name: Build web assets
         run: npm run build
       - name: Generate iOS project using Swift Package Manager
-        run: npx cap add ios
+        run: npx cap add ios --packagemanager SPM
       - name: Register native OAuth deep link
         run: node scripts/configure-capacitor-deeplinks.mjs ios
       - name: Sync Capacitor project
