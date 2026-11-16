@@ -36,6 +36,8 @@ jobs:
         run: |
           npm audit --json > /tmp/propertyx-audit.json || true
           node -e "const a=require('/tmp/propertyx-audit.json'); const rows=Object.entries(a.vulnerabilities||{}).map(([name,v])=>({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable,via:v.via})); console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities,packages:rows},null,2));"
+      - name: Enforce high and critical dependency audit
+        run: npm audit --audit-level=high
       - name: Run unit tests
         run: npm test
       - name: Build production bundle
