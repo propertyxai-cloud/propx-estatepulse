@@ -86,8 +86,10 @@ serve(async (req) => {
   const listingType = boundedText(body.listing_type, 30);
   const propertyType = boundedText(body.property_type, 40);
   const currencyCode = boundedText(body.currency_code, 3)?.toUpperCase() ?? null;
-  const minPrice = body.min_price === undefined ? null : Number(body.min_price);
-  const maxPrice = body.max_price === undefined ? null : Number(body.max_price);
+  const minPrice = body.min_price === undefined || body.min_price === null || body.min_price === ""
+    ? null : Number(body.min_price);
+  const maxPrice = body.max_price === undefined || body.max_price === null || body.max_price === ""
+    ? null : Number(body.max_price);
   const requestedLimit = Number(body.limit ?? 20);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(50, Math.floor(requestedLimit))) : 20;
   const offsetRaw = Number(body.offset ?? 0);

@@ -68,8 +68,10 @@ async function callerId(req: Request): Promise<string | null> {
  * Read from the server environment, never inferred from the store's dashboard
  * toggle, which reflects only what is being viewed.
  */
-function billingMode(): "test" | "live" {
-  return (Deno.env.get("LEMONSQUEEZY_MODE") ?? "live").toLowerCase() === "test" ? "test" : "live";
+function billingMode(): "test" | "live" | null {
+  const configured = (Deno.env.get("LEMONSQUEEZY_MODE") ?? "").trim().toLowerCase();
+  if (configured === "test" || configured === "live") return configured;
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -122,11 +124,18 @@ Deno.serve(async (req) => {
         409,
       );
     }
-    if (!plan.provider_variant_id) {
+    if (!plan.provider_variant_id || !/^\d+$/.test(String(plan.provider_variant_id))) {
       return reply({ error: "plan_misconfigured", planCode }, 500);
+    }
+    if (!Number.isSafeInteger(Number(plan.amount_minor)) || Number(plan.amount_minor) < 1
+      || !/^[A-Z]{3}$/.test(String(plan.currency ?? "").toUpperCase())) {
+      return reply({ error: "plan_price_misconfigured", planCode }, 500);
     }
 
     const mode = billingMode();
+    if (!mode) {
+      return reply({ error: "billing_mode_not_configured" }, 503);
+    }
 
     // Recorded before the provider call so a failure still leaves a trace, and
     // so the webhook has an order row to attach the purchase to.
