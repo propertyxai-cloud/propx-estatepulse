@@ -41,7 +41,7 @@ export default function AgentPortal(){
       if(isAdmin){
         const client=requireSupabase();
         const [pendingResult,reportResult,reviewResult,messageResult,userResult]=await Promise.all([
-          client.from('properties').select('id,title,city,country,currency,price,price_label,created_at,moderation_status,owner_id,posted_by').eq('moderation_status','pending').order('created_at',{ascending:true}).limit(100),
+          client.from('properties').select('id,title,city,country,currency,currency_code,price,created_at,moderation_status,owner_id,posted_by').eq('moderation_status','pending').order('created_at',{ascending:true}).limit(100),
           client.from('listing_reports').select('id,property_id,reporter_id,reason,details,status,created_at,property:properties(title,city,country)').in('status',['new','reviewing']).order('created_at',{ascending:true}).limit(100),
           client.from('broker_reviews').select('id,broker_id,reviewer_id,rating,review,created_at,agent:agent_public_profiles(public_name)').eq('moderation_status','pending').order('created_at',{ascending:true}).limit(100),
           client.from('contact_messages').select('id,name,email,subject,message,status,created_at').order('created_at',{ascending:false}).limit(100),
@@ -165,7 +165,7 @@ export default function AgentPortal(){
       {isAdmin&&<>
         <section className="dashboard-panel">
           <div className="section-head-row"><div><h2><ShieldCheck size={18}/> Listing moderation</h2><p>Approve or reject seller submissions using server-side role checks.</p></div><StatusPill value={pending.length?'pending':'clear'}/></div>
-          {pending.length===0?<p className="empty-inline">No listings are waiting for review.</p>:<div className="table-wrap"><table className="data-table"><thead><tr><th>Property</th><th>Location</th><th>Price</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>{pending.map((item)=><tr key={item.id}><td><Link to={`/property/${item.id}`}>{item.title}</Link></td><td>{[item.city,item.country].filter(Boolean).join(', ')}</td><td>{item.price_label||formatCurrency(item.price,item.currency)}</td><td>{formatDate(item.created_at)}</td><td className="table-actions"><button className="btn btn-primary btn-xs" disabled={busyId===item.id} onClick={()=>moderateProperty(item.id,'approved')}><Check size={13}/> Approve</button><button className="btn btn-outline btn-xs" disabled={busyId===item.id} onClick={()=>moderateProperty(item.id,'rejected')}><XCircle size={13}/> Reject</button></td></tr>)}</tbody></table></div>}
+          {pending.length===0?<p className="empty-inline">No listings are waiting for review.</p>:<div className="table-wrap"><table className="data-table"><thead><tr><th>Property</th><th>Location</th><th>Price</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>{pending.map((item)=><tr key={item.id}><td><Link to={`/property/${item.id}`}>{item.title}</Link></td><td>{[item.city,item.country].filter(Boolean).join(', ')}</td><td>{formatCurrency(item.price,item.currency_code||item.currency||'USD')}</td><td>{formatDate(item.created_at)}</td><td className="table-actions"><button className="btn btn-primary btn-xs" disabled={busyId===item.id} onClick={()=>moderateProperty(item.id,'approved')}><Check size={13}/> Approve</button><button className="btn btn-outline btn-xs" disabled={busyId===item.id} onClick={()=>moderateProperty(item.id,'rejected')}><XCircle size={13}/> Reject</button></td></tr>)}</tbody></table></div>}
         </section>
 
         <section className="dashboard-panel">

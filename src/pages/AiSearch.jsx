@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bot, Send, Sparkles, Info, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { fetchProperties, requireSupabase } from '../lib/data';
+import { fetchProperties, formatCurrency, requireSupabase } from '../lib/data';
 import { normalizeAiSearchFilters, parseLocalFallback } from '../lib/aiSearchFilters';
 
 const SUGGESTIONS = [
@@ -73,7 +73,7 @@ export default function AiSearch() {
         try {
           const { data } = await client.functions.invoke('ai-assistant', {
             body: { action:'advisor', payload:{ message:query, listings:suggestions.map((p)=>({
-              id:p.id,title:p.title,price:p.price,price_label:p.price_label,currency:p.currency_code||p.currency,
+              id:p.id,title:p.title,price:p.price,currency:p.currency_code||p.currency,
               city:p.city,country:p.country,property_type:p.property_type,beds:p.beds,baths:p.baths,area:p.area,area_unit:p.area_unit,
               features:p.features,est_yield:p.est_yield,est_roi:p.est_roi,
             })) } },
@@ -105,7 +105,7 @@ export default function AiSearch() {
                   {message.results.map((property)=><Link to={`/property/${property.id}`} className="match-result" key={property.id}>
                     {property.images?.[0] && <img src={property.images[0]} alt={property.title} loading="lazy"/>}
                     <div className="mr-info"><b className="mr-title">{property.title}</b>
-                      <span className="mr-meta">{property.price_label || property.price} · {[property.city,property.country].filter(Boolean).join(', ')}</span>
+                      <span className="mr-meta">{formatCurrency(property.price,property.currency_code||property.currency||'USD')} · {[property.city,property.country].filter(Boolean).join(', ')}</span>
                       <span className="mr-meta">{[property.property_type,property.beds ? `${property.beds} bed` : null].filter(Boolean).join(' · ')}</span>
                     </div>
                   </Link>)}

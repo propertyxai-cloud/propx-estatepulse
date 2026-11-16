@@ -48,7 +48,7 @@ export default function PropertyDetail(){
   },[id,user?.id]);
 
   const images=Array.isArray(property?.images)?property.images:[];
-  const price=property?.price_label||formatCurrency(property?.price,property?.currency_code||property?.currency||'USD');
+  const price=formatCurrency(property?.price,property?.currency_code||property?.currency||'USD');
 
   const toggleSaved=async()=>{
     if(!user){setMessage('Sign in to save this listing.');return;}

@@ -31,7 +31,7 @@ export default function PropertyCard({ property, showMatch = false, showActions 
     return 'sale';
   };
   const sizeLabel = p.area ? `${p.area} ${p.area_unit || ''}`.trim() : null;
-  const price = p.price_label || formatCurrency(p.price, p.currency_code || p.currency || 'USD');
+  const price = formatCurrency(p.price, p.currency_code || p.currency || 'USD');
   const toggleFavorite = async () => {
     if (!user) { navigate('/login'); return; }
     setSaving(true);

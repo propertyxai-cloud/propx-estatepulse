@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { LocateFixed, MapPin, BookmarkPlus } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { createSavedSearch, fetchProperties } from '../lib/data';
+import { createSavedSearch, fetchProperties, formatCurrency } from '../lib/data';
 import { useAuth } from '../context/AuthContext';
 
 function distanceKm(a,b){
@@ -110,7 +110,7 @@ export default function MapSearch(){
           {properties.map((property)=>(
             <div key={property.id} className="map-card-item" role="button" tabIndex={0} onClick={()=>{setSelected(property.id);mapRef.current?.flyTo([property.lat,property.lng],13);}} onKeyDown={(e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(property.id);}}}>
               {property.images?.[0]&&<img src={property.images[0]} alt={property.title}/>}
-              <div><Link to={`/property/${property.id}`} className="mc-title">{property.title}</Link><div className="mc-meta">{property.price_label||property.price} · {property.property_type}</div><div className="mc-meta">{[property.city,property.country].filter(Boolean).join(', ')}</div></div>
+              <div><Link to={`/property/${property.id}`} className="mc-title">{property.title}</Link><div className="mc-meta">{formatCurrency(property.price,property.currency_code||property.currency||'USD')} · {property.property_type}</div><div className="mc-meta">{[property.city,property.country].filter(Boolean).join(', ')}</div></div>
             </div>
           ))}
         </div>
