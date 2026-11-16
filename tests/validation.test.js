@@ -8,6 +8,7 @@ const valid = {
   property_type:'Apartment',
   price:'100000',
   city:'Islamabad',
+  address:'Sector F-7, Islamabad',
   country_code:'PK',
   currency_code:'PKR',
   timezone:'Asia/Karachi',
@@ -47,4 +48,12 @@ test('rejects invalid timezone and partial coordinates',()=>{
 test('rejects invalid bedroom counts and blank title',()=>{
   assert.match(validatePropertyDraft({...valid,beds:'2.5'}),/whole number/);
   assert.match(validatePropertyDraft({...valid,title:'  '}),/title/);
+});
+
+test('rejects a too-short or too-long street address when provided',()=>{
+  assert.match(validatePropertyDraft({...valid,address:'abc'}),/address must be between 5 and 300/);
+  assert.match(validatePropertyDraft({...valid,address:'x'.repeat(301)}),/address must be between 5 and 300/);
+});
+test('allows an omitted street address for listings where address is private',()=>{
+  assert.equal(validatePropertyDraft({...valid,address:''}),null);
 });

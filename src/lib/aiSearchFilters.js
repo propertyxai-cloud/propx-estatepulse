@@ -29,6 +29,9 @@ export function resolveCurrencyCode(query, city = null) {
   if (/\b(united kingdom|uk|london|england)\b/.test(lower)) return 'GBP';
   if (/\b(united states|usa|us|new york)\b/.test(lower)) return 'USD';
   if (/\b(singapore)\b/.test(lower)) return 'SGD';
+  if (/\b(canada|toronto)\b/.test(lower)) return 'CAD';
+  if (/\b(australia|sydney)\b/.test(lower)) return 'AUD';
+  if (/\b(new zealand|auckland)\b/.test(lower)) return 'NZD';
   return null;
 }
 

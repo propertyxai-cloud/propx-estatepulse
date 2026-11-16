@@ -20,6 +20,8 @@ export function validatePropertyDraft(values) {
   if (!PROPERTY_TYPES.includes(values?.property_type)) return 'Choose a valid property type.';
   if (!Number.isFinite(price) || price <= 0) return 'Price must be a number greater than zero.';
   if (!city || city.length > 120) return 'Enter a city name.';
+  const address = String(values?.address ?? '').trim();
+  if (address && (address.length < 5 || address.length > 300)) return 'Street address must be between 5 and 300 characters when provided.';
   if (!normalizeCountryCode(values?.country_code)) return 'Enter a valid two-letter ISO country code.';
   if (!normalizeCurrencyCode(values?.currency_code)) return 'Enter a valid three-letter ISO currency code.';
   if (!String(values?.timezone ?? '').trim()) return 'Enter the property timezone using an IANA timezone identifier.';
